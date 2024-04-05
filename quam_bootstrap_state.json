@@ -1,0 +1,100 @@
+{
+  "qubits": [{
+      "name": "q0",
+      "f_01": 6567349000.0,
+      "f_tls": [6567349000.0],
+      "lo": 6617349000.0,
+      "rf_gain": 0,
+      "rf_switch_mode": "on",
+      "mixer_name": "octave_octave1_2",
+      "anharmonicity": 250000000.0,
+      "drag_coefficient": 0.0,
+      "ac_stark_detuning": 0.0,
+      "x180_length": 40,
+      "x180_amp": 0.1,
+      "pi_length": [40,80],
+      "pi_amp": [0.05,0.02],
+      "pi_length_tls": [200],
+      "pi_amp_tls": [0.2],
+      "T1": 1230,
+      "T2": 123,
+      "DC_tuning_curve": [0.0,0.0,0.0],
+      "AC_tuning_curve": [0.0,0.0,0.0],
+      "digital_marker": {
+        "delay": 87,
+        "buffer": 15
+      },
+      "wiring": {
+        "controller": "con1",
+        "I": 3,
+        "Q": 4,
+        "digital_marker": 3
+      }
+    }],
+  "flux_lines": [{
+      "name": "flux0",
+      "flux_pulse_length": 16,
+      "flux_pulse_amp": 0.25,
+      "max_frequency_point": 0.0,
+      "Z_delay": 19,
+      "dc_voltage": 0.0,
+      "iswap": {
+        "length": [16],
+        "level": [0.2]
+      },
+      "wiring": {
+        "controller": "con1",
+        "port": 7,
+        "filter": {
+          "iir_taps": [],
+          "fir_taps": []
+        }
+      }
+    }],
+  "resonators": [{
+      "name": "r0",
+      "f_readout": 7256000000.0,
+      "lo": 7206000000.0,
+      "rf_gain": 0,
+      "rf_switch_mode": "on",
+      "depletion_time": 10000,
+      "readout_pulse_length": 500,
+      "optimal_pulse_length": 2000,
+      "readout_pulse_amp": 0.125,
+      "rotation_angle": 0.0,
+      "ge_threshold": 0.0,
+      "RO_attenuation": [32.0,10.0],
+      "TWPA": [6324000000.0,-10.0],
+      "tuning_curve": [0.0,0.0,0.0,0.0,0.0,0.0],
+      "digital_marker": {
+        "delay": 87,
+        "buffer": 15
+      },
+      "wiring": {
+        "controller": "con1",
+        "I": 1,
+        "Q": 2,
+        "digital_marker": 1
+      }
+    }],
+  "network": {
+    "qop_ip": "192.168.88.254",
+    "octave1_ip": "192.168.88.179",
+    "qop_port": 80,
+    "octave_port": 80,
+    "cluster_name": "DF5",
+    "save_dir": ""
+  },
+  "global_parameters": {
+    "time_of_flight": 304,
+    "saturation_amp": 0.1,
+    "saturation_len": 14000,
+    "con1_downconversion_offset_I": 0.0,
+    "con1_downconversion_offset_Q": 0.0,
+    "con1_downconversion_gain": 0,
+    "con2_downconversion_offset_I": 0.0,
+    "con2_downconversion_offset_Q": 0.0,
+    "con2_downconversion_gain": 0,
+    "RO_delay": 0
+  }
+}
