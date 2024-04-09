@@ -4,7 +4,7 @@ import quam_sdk.constructor
 # The structure is almost completely free
 state = {
     "network": {"qop_ip": "192.168.88.254", "octave1_ip": "192.168.88.179", "qop_port": 80, "octave_port": 80, "cluster_name": 'DF5', "save_dir": ""},
-    "qubits": [
+    "qubits": {
         {
             "name": "q0",
             "f_01": 6567349000.0,
@@ -37,8 +37,8 @@ state = {
                 "digital_marker": 3,
             },
         },
-    ],
-    "flux_lines": [
+    },
+    "flux_lines": {
         {
             "name": "flux0",
             "flux_pulse_length": 16,
@@ -56,8 +56,8 @@ state = {
                 "filter": {"iir_taps": [], "fir_taps": []},
             },
         },
-    ],
-    "resonators": [
+    },
+    "resonators": {
         {
             "name": "r0",
             "f_readout": 7.256e9,
@@ -84,17 +84,28 @@ state = {
                 "digital_marker": 1,
             },
         },
-    ],
-    "global_parameters": {
-        "time_of_flight": 304,
+    },
+    "hardware_parameters": {
+        "readout_pulse": {
+            "time_of_flight": 304,
+            "amp": 0.3,
+            "length": 500,
+            "rotation_angle": 0.0,
+            "ge_threshold": 0.0,
+            "RO_attenuation": [32.0, 10.0],
+            "TWPA": [6324E6,-10.0],
+            "digital_marker": {
+                "delay": 57,
+                "buffer": 18,
+            },
+        }
+
+        
         "saturation_amp": 0.1,
         "saturation_len": 14000,
         "con1_downconversion_offset_I": 0.0,
         "con1_downconversion_offset_Q": 0.0,
         "con1_downconversion_gain": 0,
-        "con2_downconversion_offset_I": 0.0,
-        "con2_downconversion_offset_Q": 0.0,
-        "con2_downconversion_gain": 0,
         "RO_delay": 0,
     },
 }

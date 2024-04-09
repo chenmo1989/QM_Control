@@ -164,16 +164,16 @@ def build_config(quam: QuAM):
         "controllers": {
             "con1": {
                 "analog_outputs": {
-                    1: {"offset": 0.0, "delay": quam.global_parameters.RO_delay},
-                    2: {"offset": 0.0, "delay": quam.global_parameters.RO_delay},
-                    3: {"offset": 0.0},
-                    4: {"offset": 0.0},
-                    5: {"offset": 0.0},
-                    6: {"offset": 0.0},
-                    7: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay},
-                    8: {"offset": 0.0, "delay": quam.flux_lines[1].Z_delay}, 
-                    9: {"offset": 0.0, "delay": quam.flux_lines[2].Z_delay}, 
-                    10: {"offset": 0.0, "delay": quam.flux_lines[3].Z_delay}, 
+                    1: {"offset": 0.0, "delay": quam.global_parameters.RO_delay}, # I readout
+                    2: {"offset": 0.0, "delay": quam.global_parameters.RO_delay}, # Q readout
+                    3: {"offset": 0.0}, # I qubit XY
+                    4: {"offset": 0.0}, # Q qubit XY
+                    5: {"offset": 0.0}, # I auxiliary XY
+                    6: {"offset": 0.0}, # Q auxiliary XY
+                    7: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay}, # qubit0 Z
+                    8: {"offset": 0.0, "delay": quam.flux_lines[1].Z_delay}, # qubit1 Z
+                    9: {"offset": 0.0, "delay": quam.flux_lines[2].Z_delay}, # qubit2 Z
+                    10: {"offset": 0.0, "delay": quam.flux_lines[3].Z_delay}, # qubit3 Z
                 },
                 "digital_outputs": {
                     1: {},
@@ -191,88 +191,60 @@ def build_config(quam: QuAM):
                     1: {
                         "offset": quam.global_parameters.con1_downconversion_offset_I,
                         "gain_db": quam.global_parameters.con1_downconversion_gain,
-                    },  
+                    }, # I from down-conversion 
                     2: {
                         "offset": quam.global_parameters.con1_downconversion_offset_Q,
                         "gain_db": quam.global_parameters.con1_downconversion_gain,
-                    },  
+                    }, # Q from down-conversion
                 },
             },
         },
         "elements": {
             **{
                 quam.resonators[i].name: {
-                    "mixInputs": {
-                        "I": ("con1", quam.resonators[i].wiring.I),
-                        "Q": ("con1", quam.resonators[i].wiring.Q),
-                        "lo_frequency": quam.resonators[i].lo,
-                        "mixer": "octave_octave1_1",
-                    },
+                    "RF_inputs": {"port": ("octave1", 1)},
+                    "RF_outputs": {"port": ("octave1", 1)},
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.resonators[i].lo), 
+                    "operations": {
+                        "cw": "const_pulse",
+                        "readout": f"readout_pulse_q{i}",
+                        },
+                    "time_of_flight": quam.global_parameters.time_of_flight,
+                    "smearing": 0,
                     "digitalInputs": {
-                        "digital_marker": {
+                        "output_switch": {
                             "port": ("con1", 1),
                             "delay": quam.resonators[i].digital_marker.delay,
                             "buffer": quam.resonators[i].digital_marker.buffer,
                         },
                     },
-                    "intermediate_frequency": (quam.resonators[i].f_readout - quam.resonators[i].lo),
-                    "operations": {
-                        "cw": "const_pulse",
-                        "readout": f"readout_pulse_q{i}",
-                    },
-                    "outputs": {
-                        "out1": ("con1", 1),
-                        "out2": ("con1", 2),
-                    },
-                    "time_of_flight": quam.global_parameters.time_of_flight,
-                    "smearing": 0,
                 }
                 for i in range(len(quam.resonators))
             },
             **{
                 quam.resonators[i].name+"aux": {
-                    "mixInputs": {
-                        "I": ("con1", quam.resonators[i].wiring.I),
-                        "Q": ("con1", quam.resonators[i].wiring.Q),
-                        "lo_frequency": quam.resonators[i].lo,
-                        "mixer": "octave_octave1_1",
-                    },
+                    "RF_inputs": {"port": ("octave1", 1)},
+                    "RF_outputs": {"port": ("octave1", 1)},
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.resonators[i].lo), 
+                    "operations": {
+                        "cw": "const_pulse",
+                        "readout": f"readout_pulse_q{i}",
+                        },
+                    "time_of_flight": quam.global_parameters.time_of_flight,
+                    "smearing": 0,
                     "digitalInputs": {
-                        "digital_marker": {
+                        "output_switch": {
                             "port": ("con1", 1),
                             "delay": quam.resonators[i].digital_marker.delay,
                             "buffer": quam.resonators[i].digital_marker.buffer,
                         },
                     },
-                    "intermediate_frequency": (quam.resonators[i].f_readout - quam.resonators[i].lo),
-                    "operations": {
-                        "cw": "const_pulse",
-                        "readout": f"readout_pulse_q{i}",
-                    },
-                    "outputs": {
-                        "out1": ("con1", 1),
-                        "out2": ("con1", 2),
-                    },
-                    "time_of_flight": quam.global_parameters.time_of_flight,
-                    "smearing": 0,
                 }
                 for i in range(len(quam.resonators))
             },
             **{
                 quam.qubits[i].name: {
-                    "mixInputs": {
-                        "I": (quam.qubits[i].wiring.controller, quam.qubits[i].wiring.I),
-                        "Q": (quam.qubits[i].wiring.controller, quam.qubits[i].wiring.Q),
-                        "lo_frequency": quam.qubits[i].lo,
-                        "mixer": quam.qubits[i].mixer_name,
-                    },
-                    "digitalInputs": {
-                        "digital_marker": {
-                            "port": ("con1", 3),
-                            "delay": quam.qubits[i].digital_marker.delay,
-                            "buffer": quam.qubits[i].digital_marker.buffer,
-                        },
-                    },
+                    "RF_inputs": {"port": ("octave1", 2)},
                     "intermediate_frequency": (quam.qubits[i].f_01 - quam.qubits[i].lo),
                     "operations": {
                         "cw": "const_pulse",
@@ -290,6 +262,15 @@ def build_config(quam: QuAM):
                         "y180": f"y180_pulse{i}",
                         "-y90": f"-y90_pulse{i}",
                     },
+                    "digitalInputs": {
+                        "output_switch": {
+                            "port": ("con1", 3),
+                            "delay": quam.qubits[i].digital_marker.delay,
+                            "buffer": quam.qubits[i].digital_marker.buffer,
+                        },
+                    },
+                    
+                    
                 }
                 for i in range(len(quam.qubits))
             },
@@ -304,6 +285,31 @@ def build_config(quam: QuAM):
                 }
                 for i in range(len(quam.flux_lines))
             },
+        },
+        "octaves": {
+            "octave1": {
+                "RF_outputs": {
+                    1: {
+                        "LO_frequency": quam.resonators[0].lo,
+                        "LO_source": "internal",
+                        "output_mode": "trig_normal",
+                        "gain": 0,
+                    },
+                    2: {
+                        "LO_frequency": quam.qubits[0].lo,
+                        "LO_source": "internal",
+                        "output_mode": "trig_normal",
+                        "gain": 0,
+                    },
+                },
+                "RF_inputs": {
+                    1: {
+                        "LO_frequency": quam.resonators[0].lo,
+                        "LO_source": "internal",
+                    },
+                },
+                "connectivity": "con1",
+            }
         },
         "pulses": {
             "const_pulse": {
@@ -645,34 +651,6 @@ def build_config(quam: QuAM):
                 }
                 for i in range(len(quam.resonators))
             },
-        },
-        "mixers": {
-            **{
-                quam.qubits[i].mixer_name: [
-                    {
-                        "intermediate_frequency": (quam.qubits[i].f_01 - quam.qubits[i].lo),
-                        "lo_frequency": quam.qubits[i].lo,
-                        "correction": [1.0, 0.0, 0.0, 1.0],
-                    },
-                ]
-                for i in range(len(quam.qubits))
-            },
-            "octave_octave1_1": [
-                {
-                    "intermediate_frequency": (quam.resonators[i].f_readout - quam.resonators[i].lo),
-                    "lo_frequency": quam.resonators[i].lo,
-                    "correction": [1.0, 0.0, 0.0, 1.0],
-                } 
-                for i in range(len(quam.resonators))
-            ],
-            "octave_octave1_2": [
-                {
-                    "intermediate_frequency": (quam.qubits[i].f_01 - quam.qubits[i].lo),
-                    "lo_frequency": quam.qubits[i].lo,
-                    "correction": [1.0, 0.0, 0.0, 1.0],
-                } 
-                for i in range(len(quam.qubits))
-            ]
         },
     }
     return config
