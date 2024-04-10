@@ -309,7 +309,7 @@ def build_config(quam: QuAM):
                     },
                 },
                 "connectivity": "con1",
-            }
+            },
         },
         "pulses": {
             "const_pulse": {
@@ -328,7 +328,7 @@ def build_config(quam: QuAM):
                     "waveforms": {
                         "single": f"const_flux{i}_wf",
                     },
-                }
+                },
                 for i in range(len(quam.flux_lines))
             },
             **{
