@@ -123,13 +123,6 @@ state = {
         },
     }
     "global_parameters": {
-        "RO_delay": 0,
-        "con1_downconversion_offset_I": 0.0,
-        "con1_downconversion_offset_Q": 0.0,
-        "con1_downconversion_gain": 0,
-        "saturation_amp": 0.1,
-        "saturation_len": 14000,
-        
     },
 }
 
