@@ -41,9 +41,9 @@ for i in range(6):
                 "Q": qubits_connectivity[0][1],
                 "digital_marker": qubits_connectivity[0][2],
             },
-            "hardware_parameters": {
-                "pulse_amp": 0.025,
-                "pulse_length": 40,
+            "hardware_parameters": { # current TLS pulse. Always update using TLS index in experiments
+                "pi_length_tls": 200,
+                "pi_amp_tls": 0.3,
             },
         }
     )
@@ -52,8 +52,8 @@ for i in range(6):
         {   
             "name": flux_lines_name[i],
             "max_frequency_point": 0.0,
-            "Z_delay": 19,
-            "dc_voltage": 0.0,
+            "flux_pulse_amp": 0.25,
+            "flux_pulse_length": 100,
             "iswap": { # will use baking for these most of the time. No need to define a separate pulse for iswap. Just store parameters here
                 "length": [16],
                 "level": [0.2],
@@ -64,8 +64,8 @@ for i in range(6):
                 "filter": {"iir_taps": [], "fir_taps": []},
             },
             "hardware_parameters": { # a general flux pulse. Keep amp = 0.25 to convenient scaling.
-                "pulse_amp": 0.25,
-                "pulse_length": 100,
+                "Z_delay": 19,
+                "dc_voltage": 0.0,
             },
         }
     )
@@ -76,11 +76,11 @@ for i in range(6):
             "name": resonators_name[i],
             "f_readout": resonators_frequencies[i],
             "depletion_time": 10_000, # keep it, cooldown time for resonator
+            "readout_pulse_amp": 0.5,
+            "readout_pulse_length": 500,
             "optimal_pulse_length": 2_000, # keep it if I want non-uniform weight
             "rotation_angle": 0.0,
             "ge_threshold": 0.0,
-            "RO_attenuation": [ROI[i], 10],
-            "TWPA": [TWPA_freq[i], TWPA_pwr[i]],
             "tuning_curve": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "wiring": {
                 "controller": resonators_connectivity[0][3],
@@ -89,13 +89,13 @@ for i in range(6):
                 "digital_marker": resonators_connectivity[0][2],
             },
             "hardware_parameters": { # readout pulse
-                "pulse_amp": 0.5,
-                "pulse_length": 500,
                 "time_of_flight": 304,
                 "con1_downconversion_offset_I": 0.0,
                 "con1_downconversion_offset_Q": 0.0,
                 "con1_downconversion_gain": 0,
-                "RO_delay": 0,       
+                "RO_delay": 0,
+                "RO_attenuation": [ROI[i], 10],
+                "TWPA": [TWPA_freq[i], TWPA_pwr[i]], 
             },
         }
     )

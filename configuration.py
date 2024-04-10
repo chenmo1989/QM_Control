@@ -204,18 +204,18 @@ def build_config(quam: QuAM):
                 quam.resonators[i].name: {
                     "RF_inputs": {"port": ("octave1", 1)},
                     "RF_outputs": {"port": ("octave1", 1)},
-                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.resonators[i].lo), 
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octave.LO1.LO_frequency), 
                     "operations": {
                         "cw": "const_pulse",
                         "readout": f"readout_pulse_q{i}",
                         },
-                    "time_of_flight": quam.global_parameters.time_of_flight,
+                    "time_of_flight": quam.resonators[i].hardware_parameters.time_of_flight,
                     "smearing": 0,
                     "digitalInputs": {
                         "output_switch": {
                             "port": ("con1", 1),
-                            "delay": quam.resonators[i].digital_marker.delay,
-                            "buffer": quam.resonators[i].digital_marker.buffer,
+                            "delay": quam.octave.digital_marker1.delay,
+                            "buffer": quam.octave.digital_marker1.buffer,
                         },
                     },
                 }
@@ -225,18 +225,18 @@ def build_config(quam: QuAM):
                 quam.resonators[i].name+"aux": {
                     "RF_inputs": {"port": ("octave1", 1)},
                     "RF_outputs": {"port": ("octave1", 1)},
-                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.resonators[i].lo), 
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octave.LO1.LO_frequency), 
                     "operations": {
                         "cw": "const_pulse",
                         "readout": f"readout_pulse_q{i}",
                         },
-                    "time_of_flight": quam.global_parameters.time_of_flight,
+                    "time_of_flight": quam.resonators[i].hardware_parameters.time_of_flight,
                     "smearing": 0,
                     "digitalInputs": {
                         "output_switch": {
                             "port": ("con1", 1),
-                            "delay": quam.resonators[i].digital_marker.delay,
-                            "buffer": quam.resonators[i].digital_marker.buffer,
+                            "delay": quam.octave.digital_marker1.delay,
+                            "buffer": quam.octave.digital_marker1..buffer,
                         },
                     },
                 }
@@ -245,7 +245,7 @@ def build_config(quam: QuAM):
             **{
                 quam.qubits[i].name: {
                     "RF_inputs": {"port": ("octave1", 2)},
-                    "intermediate_frequency": (quam.qubits[i].f_01 - quam.qubits[i].lo),
+                    "intermediate_frequency": (quam.qubits[i].f_01 - quam.octave.LO2.LO_frequency),
                     "operations": {
                         "cw": "const_pulse",
                         "pi": f"pi_pulse{i}",
@@ -265,8 +265,8 @@ def build_config(quam: QuAM):
                     "digitalInputs": {
                         "output_switch": {
                             "port": ("con1", 3),
-                            "delay": quam.qubits[i].digital_marker.delay,
-                            "buffer": quam.qubits[i].digital_marker.buffer,
+                            "delay": quam.octave.digital_marker2.delay,
+                            "buffer": quam.octave.digital_marker2.buffer,
                         },
                     },
                     
@@ -290,13 +290,13 @@ def build_config(quam: QuAM):
             "octave1": {
                 "RF_outputs": {
                     1: {
-                        "LO_frequency": quam.resonators[0].lo,
+                        "LO_frequency": quam.octave.LO1.LO_frequency,
                         "LO_source": "internal",
                         "output_mode": "trig_normal",
                         "gain": 0,
                     },
                     2: {
-                        "LO_frequency": quam.qubits[0].lo,
+                        "LO_frequency": quam.octave.LO2.LO_frequency,
                         "LO_source": "internal",
                         "output_mode": "trig_normal",
                         "gain": 0,
@@ -304,7 +304,7 @@ def build_config(quam: QuAM):
                 },
                 "RF_inputs": {
                     1: {
-                        "LO_frequency": quam.resonators[0].lo,
+                        "LO_frequency": quam.octave.LO1.LO_frequency,
                         "LO_source": "internal",
                     },
                 },
@@ -357,7 +357,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_pulse{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length[0],
+                    "length": quam.qubits[i].pi_length,
                     "waveforms": {
                         "I": f"pi_wf{i}",
                         "Q": "zero_wf",
@@ -369,7 +369,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_over_two_pulse{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length[0],
+                    "length": quam.qubits[i].pi_length,
                     "waveforms": {
                         "I": f"pi_over_two_wf{i}",
                         "Q": "zero_wf",
@@ -381,7 +381,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_pulse_ef{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length[1],
+                    "length": quam.qubits[i].pi_length_ef,
                     "waveforms": {
                         "I": f"pi_ef_wf{i}",
                         "Q": "zero_wf",
@@ -393,7 +393,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_over_two_pulse_ef{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length[1],
+                    "length": quam.qubits[i].pi_length_ef,
                     "waveforms": {
                         "I": f"pi_over_two_ef_wf{i}",
                         "Q": "zero_wf",
@@ -405,7 +405,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_pulse_tls{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length_tls[0],
+                    "length": quam.qubits[i].hardware_parameters.pi_length_tls,
                     "waveforms": {
                         "I": f"pi_tls_wf{i}",
                         "Q": "zero_wf",
@@ -417,7 +417,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_over_two_pulse_tls{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length_tls[0],
+                    "length": quam.qubits[i].hardware_parameters.pi_length_tls,
                     "waveforms": {
                         "I": f"pi_over_two_tls_wf{i}",
                         "Q": "zero_wf",
@@ -429,7 +429,7 @@ def build_config(quam: QuAM):
             **{
                 f"pi_over_two_y_pulse_tls{i}": {
                     "operation": "control",
-                    "length": quam.qubits[i].pi_length_tls[0],
+                    "length": quam.qubits[i].hardware_parameters.pi_length_tls,
                     "waveforms": {
                         "I": "zero_wf",
                         "Q": f"pi_over_two_tls_wf{i}",
@@ -523,27 +523,27 @@ def build_config(quam: QuAM):
                 for i in range(len(quam.resonators))
             },
             **{
-                f"pi_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp[0]}
+                f"pi_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp}
                 for i in range(len(quam.qubits))
             },
             **{
-                f"pi_over_two_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp[0]/2}
+                f"pi_over_two_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp/2}
                 for i in range(len(quam.qubits))
             },
             **{
-                f"pi_ef_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp[1]}
+                f"pi_ef_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp_ef}
                 for i in range(len(quam.qubits))
             },
             **{
-                f"pi_over_two_ef_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp[1] / 2}
+                f"pi_over_two_ef_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp_ef/2}
                 for i in range(len(quam.qubits))
             },
             **{
-                f"pi_tls_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp_tls[0]}
+                f"pi_tls_wf{i}": {"type": "constant", "sample": quam.qubits[i].hardware_parameters.pi_amp_tls}
                 for i in range(len(quam.qubits))
             },
             ** {
-                f"pi_over_two_tls_wf{i}": {"type": "constant", "sample": quam.qubits[i].pi_amp_tls[0] / 2}
+                f"pi_over_two_tls_wf{i}": {"type": "constant", "sample": quam.qubits[i].hardware_parameters.pi_amp_tls/2}
                 for i in range(len(quam.qubits))
             },
             **{f"x90_I_wf{i}": {"type": "arbitrary", "samples": x90_I_wf[i].tolist()} for i in range(len(quam.qubits))},
