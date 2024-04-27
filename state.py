@@ -4,7 +4,7 @@ import quam_sdk.constructor
 # The structure is almost completely free
 state = {
     "network": {"qop_ip": "192.168.88.254", "octave1_ip": "192.168.88.179", "qop_port": 80, "octave_port": 80, "cluster_name": 'DF5', "save_dir": ""},
-    "qubits": {
+    "qubits": [
         {
             "name": "q0",
             "f_01": 6567349000.0,
@@ -12,12 +12,12 @@ state = {
             "anharmonicity": 180e6,
             "drag_coefficient": 0.0,
             "ac_stark_detuning": 0.0,
-            "x180_length": 40,
+            "x180_length": 40, # for gaussian wave
             "x180_amp": 0.1,
-            "pi_length": 40,
+            "pi_length": 40, # for square wave
             "pi_amp": 0.025,
             "pi_length_ef": 80,
-            "pi_amp_ef": 0.015
+            "pi_amp_ef": 0.015,
             "pi_length_tls": [200],
             "pi_amp_tls": [0.3],
             "T1": 2500,
@@ -33,10 +33,11 @@ state = {
             "hardware_parameters": { # current TLS pulse. Always update using TLS index in experiments
                 "pi_length_tls": 200,
                 "pi_amp_tls": 0.3,
+                "RF_output_gain": 0,
             },
         },
-    },
-    "flux_lines": {
+    ],
+    "flux_lines": [
         {
             "name": "flux0",
             "max_frequency_point": 0.0,
@@ -56,8 +57,8 @@ state = {
                 "dc_voltage": 0.0, # add qdac initialization function, which reset this. Modify qdac function s.t. it updates this value every time.
             },
         },
-    },
-    "resonators": {
+    ],
+    "resonators": [
         {
             "name": "r0",
             "f_readout": 7.256e9,
@@ -76,53 +77,67 @@ state = {
             },
             "hardware_parameters": { # readout pulse
                 "time_of_flight": 304,
-                "con1_downconversion_offset_I": 0.0,
-                "con1_downconversion_offset_Q": 0.0,
-                "con1_downconversion_gain": 0,
-                "RO_delay": 0,      
+                "downconversion_offset_I": 0.0,
+                "downconversion_offset_Q": 0.0,
+                "downconversion_gain": 0,
+                "RO_delay": 0,
                 "RO_attenuation": [32.0, 10.0],
-                "TWPA": [6324E6,-10.0], 
+                "TWPA": [6324E6,-10.0],
+                "RF_output_gain": 0,
             },
         },
-    },
-    "octave": {
-        "LO1": {
-            "LO_frequency": 5E9,
-            "LO_source": "internal",
-            "output_mode": "trig_normal",
-            "gain": 0,    
+    ],
+    "octaves": [ # here we can have multiple octaves
+        {
+            "name": "octave1",
             "time_of_flight": 304,
-            "con1_downconversion_offset_I": 0.0,
-            "con1_downconversion_offset_Q": 0.0,
-            "con1_downconversion_gain": 0,
-            "RO_delay": 0,       
-        }
-        "LO2": {
-            "LO_frequency": 5E9,
-            "LO_source": "internal",
-            "output_mode": "trig_normal",
-            "gain": 0,           
-        }
-        "LO3": {
-            "LO_frequency": 5E9,
-            "LO_source": "internal",
-            "output_mode": "trig_normal",
-            "gain": 0,           
-        }
-        "digital_marker1": {
-                "delay": 57,
-                "buffer": 18,
+            "downconversion_offset_I": 0.0,
+            "downconversion_offset_Q": 0.0,
+            "downconversion_gain": 0,
+            "RO_delay": 0,
+            "LO_sources": [ # 3 LO sources for each octave
+                {
+                    "name": "LO1",
+                    "LO_frequency": 5E9,
+                    "LO_source": "internal",
+                    "output_mode": "triggered",
+                    "gain": 0,
+                    "digital_marker": {
+                        "delay": 57,
+                        "buffer": 18,
+                    },
+                    "input_attenuators": "OFF",
+                },
+                {
+                    "name": "LO2",
+                    "LO_frequency": 5E9,
+                    "LO_source": "internal",
+                    "output_mode": "triggered",
+                    "gain": 0,
+                    "digital_marker": {
+                        "delay": 57,
+                        "buffer": 18,
+                    },
+                    "input_attenuators": "OFF",
+                },
+                {
+                    "name": "LO3",
+                    "LO_frequency": 5E9,
+                    "LO_source": "internal",
+                    "output_mode": "triggered",
+                    "gain": 0,
+                    "digital_marker": {
+                        "delay": 57,
+                        "buffer": 18,
+                    },
+                    "input_attenuators": "OFF",
+                },
+            ],
         },
-        "digital_marker2": {
-                "delay": 57,
-                "buffer": 18,
-        },
-        "digital_marker3": {
-                "delay": 57,
-                "buffer": 18,
-        },
-    }
+    ],
     "global_parameters": {
+        "saturation_amp": 0.1,
+        "saturation_len": 14000,
     },
 }
 

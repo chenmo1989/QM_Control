@@ -1,7 +1,7 @@
 """
 Octave configuration working for QOP222 and qm-qua==1.1.5 and newer.
 """
-
+from quam import QuAM
 from pathlib import Path
 import numpy as np
 from qualang_tools.config.waveform_tools import drag_gaussian_pulse_waveforms
@@ -164,16 +164,16 @@ def build_config(quam: QuAM):
         "controllers": {
             "con1": {
                 "analog_outputs": {
-                    1: {"offset": 0.0, "delay": quam.global_parameters.RO_delay}, # I readout
-                    2: {"offset": 0.0, "delay": quam.global_parameters.RO_delay}, # Q readout
+                    1: {"offset": 0.0, "delay": quam.octaves[0].RO_delay}, # I readout
+                    2: {"offset": 0.0, "delay": quam.octaves[0].RO_delay}, # Q readout
                     3: {"offset": 0.0}, # I qubit XY
                     4: {"offset": 0.0}, # Q qubit XY
                     5: {"offset": 0.0}, # I auxiliary XY
                     6: {"offset": 0.0}, # Q auxiliary XY
-                    7: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay}, # qubit0 Z
-                    8: {"offset": 0.0, "delay": quam.flux_lines[1].Z_delay}, # qubit1 Z
-                    9: {"offset": 0.0, "delay": quam.flux_lines[2].Z_delay}, # qubit2 Z
-                    10: {"offset": 0.0, "delay": quam.flux_lines[3].Z_delay}, # qubit3 Z
+                    7: {"offset": 0.0, "delay": quam.flux_lines[0].hardware_parameters.Z_delay}, # qubit0 Z
+                    8: {"offset": 0.0, "delay": quam.flux_lines[1].hardware_parameters.Z_delay}, # qubit1 Z
+                    9: {"offset": 0.0, "delay": quam.flux_lines[2].hardware_parameters.Z_delay}, # qubit2 Z
+                    10: {"offset": 0.0, "delay": quam.flux_lines[3].hardware_parameters.Z_delay}, # qubit3 Z
                 },
                 "digital_outputs": {
                     1: {},
@@ -189,12 +189,12 @@ def build_config(quam: QuAM):
                 },
                 "analog_inputs": {
                     1: {
-                        "offset": quam.global_parameters.con1_downconversion_offset_I,
-                        "gain_db": quam.global_parameters.con1_downconversion_gain,
+                        "offset": quam.octaves[0].downconversion_offset_I,
+                        "gain_db": quam.octaves[0].downconversion_gain,
                     }, # I from down-conversion 
                     2: {
-                        "offset": quam.global_parameters.con1_downconversion_offset_Q,
-                        "gain_db": quam.global_parameters.con1_downconversion_gain,
+                        "offset": quam.octaves[0].downconversion_offset_Q,
+                        "gain_db": quam.octaves[0].downconversion_gain,
                     }, # Q from down-conversion
                 },
             },
@@ -214,8 +214,8 @@ def build_config(quam: QuAM):
                     "digitalInputs": {
                         "output_switch": {
                             "port": ("con1", 1),
-                            "delay": quam.octave.digital_marker1.delay,
-                            "buffer": quam.octave.digital_marker1.buffer,
+                            "delay": quam.octaves[0].LO_sources[0].digital_marker.delay,
+                            "buffer": quam.octaves[0].LO_sources[0].digital_marker.buffer,
                         },
                     },
                 }
@@ -235,8 +235,8 @@ def build_config(quam: QuAM):
                     "digitalInputs": {
                         "output_switch": {
                             "port": ("con1", 1),
-                            "delay": quam.octave.digital_marker1.delay,
-                            "buffer": quam.octave.digital_marker1..buffer,
+                            "delay": quam.octaves[0].LO_sources[0].digital_marker.delay,
+                            "buffer": quam.octaves[0].LO_sources[0].digital_marker.buffer,
                         },
                     },
                 }
@@ -265,8 +265,8 @@ def build_config(quam: QuAM):
                     "digitalInputs": {
                         "output_switch": {
                             "port": ("con1", 3),
-                            "delay": quam.octave.digital_marker2.delay,
-                            "buffer": quam.octave.digital_marker2.buffer,
+                            "delay": quam.octaves[0].LO_sources[1].digital_marker.delay,
+                            "buffer": quam.octaves[0].LO_sources[1].digital_marker.buffer,
                         },
                     },
                     
@@ -290,22 +290,34 @@ def build_config(quam: QuAM):
             "octave1": {
                 "RF_outputs": {
                     1: {
-                        "LO_frequency": quam.octave.LO1.LO_frequency,
+                        "LO_frequency": quam.octaves[0].LO_sources[0].LO_frequency,
                         "LO_source": "internal",
-                        "output_mode": "trig_normal",
-                        "gain": 0,
+                        "output_mode": quam.octaves[0].LO_sources[0].output_mode,  # can be: "always_on" / "always_off" (default)/ "triggered" / "triggered_reversed".
+                        "gain": quam.octaves[0].LO_sources[0].gain,  # can be in the range [-20 : 0.5 : 20]dB
+                        "input_attenuators": quam.octaves[0].LO_sources[0].input_attenuators, # Can be "ON" / "OFF" (default). "ON" means that the I and Q signals have a 10 dB attenuation before entering the octave's internal mixer.
                     },
                     2: {
-                        "LO_frequency": quam.octave.LO2.LO_frequency,
+                        "LO_frequency": quam.octaves[0].LO_sources[1].LO_frequency,
                         "LO_source": "internal",
-                        "output_mode": "trig_normal",
-                        "gain": 0,
+                        "output_mode": quam.octaves[0].LO_sources[1].output_mode,
+                        "gain": quam.octaves[0].LO_sources[1].gain,
+                        "input_attenuators": quam.octaves[0].LO_sources[1].input_attenuators, # Can be "ON" / "OFF" (default). "ON" means that the I and Q signals have a 10 dB attenuation before entering the octave's internal mixer.
+                    },
+                    3: {
+                        "LO_frequency": quam.octaves[0].LO_sources[2].LO_frequency,
+                        "LO_source": "internal",
+                        "output_mode": quam.octaves[0].LO_sources[2].output_mode,
+                        "gain": quam.octaves[0].LO_sources[2].gain,
+                        "input_attenuators": quam.octaves[0].LO_sources[2].input_attenuators, # Can be "ON" / "OFF" (default). "ON" means that the I and Q signals have a 10 dB attenuation before entering the octave's internal mixer.
                     },
                 },
                 "RF_inputs": {
                     1: {
-                        "LO_frequency": quam.octave.LO1.LO_frequency,
+                        "RF_source": "RF_in",
+                        "LO_frequency": quam.octaves[0].LO_sources[0].LO_frequency,
                         "LO_source": "internal",
+                        "IF_mode_I": "direct",  # can be: "direct" / "mixer" / "envelope" / "off". direct is default
+                        "IF_mode_Q": "direct",
                     },
                 },
                 "connectivity": "con1",
@@ -328,7 +340,7 @@ def build_config(quam: QuAM):
                     "waveforms": {
                         "single": f"const_flux{i}_wf",
                     },
-                },
+                }
                 for i in range(len(quam.flux_lines))
             },
             **{
@@ -408,6 +420,18 @@ def build_config(quam: QuAM):
                     "length": quam.qubits[i].hardware_parameters.pi_length_tls,
                     "waveforms": {
                         "I": f"pi_tls_wf{i}",
+                        "Q": "zero_wf",
+                    },
+                    "digital_marker": "ON",
+                }
+                for i in range(len(quam.qubits))
+            },
+            **{
+                f"pi_pulse_-x_tls{i}": {
+                    "operation": "control",
+                    "length": quam.qubits[i].hardware_parameters.pi_length_tls,
+                    "waveforms": {
+                        "I": f"pi_minus_x_tls_wf{i}",
                         "Q": "zero_wf",
                     },
                     "digital_marker": "ON",
@@ -540,6 +564,10 @@ def build_config(quam: QuAM):
             },
             **{
                 f"pi_tls_wf{i}": {"type": "constant", "sample": quam.qubits[i].hardware_parameters.pi_amp_tls}
+                for i in range(len(quam.qubits))
+            },
+            **{
+                f"pi_minus_x_tls_wf{i}": {"type": "constant", "sample": -quam.qubits[i].hardware_parameters.pi_amp_tls}
                 for i in range(len(quam.qubits))
             },
             ** {

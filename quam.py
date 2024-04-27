@@ -39,13 +39,6 @@ class Network(QuamComponent):
 
 
 @quam_data
-class Digital_marker(QuamComponent):
-    delay: int
-    buffer: int
-    
-
-
-@quam_data
 class Wiring(QuamComponent):
     controller: str
     I: int
@@ -55,29 +48,34 @@ class Wiring(QuamComponent):
 
 
 @quam_data
+class Hardware_parameters(QuamComponent):
+    pi_length_tls: int
+    pi_amp_tls: float
+    
+
+
+@quam_data
 class Qubit(QuamComponent):
     name: str
     f_01: float
     f_tls: List[Union[str, int, float, bool, list]]
-    lo: float
-    rf_gain: int
-    rf_switch_mode: str
-    mixer_name: str
     anharmonicity: float
     drag_coefficient: float
     ac_stark_detuning: float
     x180_length: int
     x180_amp: float
-    pi_length: List[Union[str, int, float, bool, list]]
-    pi_amp: List[Union[str, int, float, bool, list]]
+    pi_length: int
+    pi_amp: float
+    pi_length_ef: int
+    pi_amp_ef: float
     pi_length_tls: List[Union[str, int, float, bool, list]]
     pi_amp_tls: List[Union[str, int, float, bool, list]]
     T1: int
     T2: int
     DC_tuning_curve: List[Union[str, int, float, bool, list]]
     AC_tuning_curve: List[Union[str, int, float, bool, list]]
-    digital_marker: Digital_marker
     wiring: Wiring
+    hardware_parameters: Hardware_parameters
     
 
 
@@ -104,22 +102,21 @@ class Wiring2(QuamComponent):
 
 
 @quam_data
-class Flux_line(QuamComponent):
-    name: str
-    flux_pulse_length: int
-    flux_pulse_amp: float
-    max_frequency_point: float
+class Hardware_parameters2(QuamComponent):
     Z_delay: int
     dc_voltage: float
-    iswap: Iswap
-    wiring: Wiring2
     
 
 
 @quam_data
-class Digital_marker2(QuamComponent):
-    delay: int
-    buffer: int
+class Flux_line(QuamComponent):
+    name: str
+    max_frequency_point: float
+    flux_pulse_amp: float
+    flux_pulse_length: int
+    iswap: Iswap
+    wiring: Wiring2
+    hardware_parameters: Hardware_parameters2
     
 
 
@@ -133,38 +130,67 @@ class Wiring3(QuamComponent):
 
 
 @quam_data
+class Hardware_parameters3(QuamComponent):
+    time_of_flight: int
+    downconversion_offset_I: float
+    downconversion_offset_Q: float
+    downconversion_gain: int
+    RO_delay: int
+    RO_attenuation: List[Union[str, int, float, bool, list]]
+    TWPA: List[Union[str, int, float, bool, list]]
+    
+
+
+@quam_data
 class Resonator(QuamComponent):
     name: str
     f_readout: float
-    lo: float
-    rf_gain: int
-    rf_switch_mode: str
     depletion_time: int
+    readout_pulse_amp: float
     readout_pulse_length: int
     optimal_pulse_length: int
-    readout_pulse_amp: float
     rotation_angle: float
     ge_threshold: float
-    RO_attenuation: List[Union[str, int, float, bool, list]]
-    TWPA: List[Union[str, int, float, bool, list]]
     tuning_curve: List[Union[str, int, float, bool, list]]
-    digital_marker: Digital_marker2
     wiring: Wiring3
+    hardware_parameters: Hardware_parameters3
+    
+
+
+@quam_data
+class Digital_marker(QuamComponent):
+    delay: int
+    buffer: int
+    
+
+
+@quam_data
+class LO_source(QuamComponent):
+    name: str
+    LO_frequency: float
+    LO_source: str
+    output_mode: str
+    gain: int
+    digital_marker: Digital_marker
+    
+
+
+@quam_data
+class Octave(QuamComponent):
+    name: str
+    time_of_flight: int
+    downconversion_offset_I: float
+    downconversion_offset_Q: float
+    downconversion_gain: int
+    RO_delay: int
+    LO_sources: List[LO_source]
     
 
 
 @quam_data
 class Global_parameters(QuamComponent):
-    time_of_flight: int
     saturation_amp: float
     saturation_len: int
-    con1_downconversion_offset_I: float
-    con1_downconversion_offset_Q: float
-    con1_downconversion_gain: int
-    con2_downconversion_offset_I: float
-    con2_downconversion_offset_Q: float
-    con2_downconversion_gain: int
-    RO_delay: int
     
 
 
@@ -173,6 +199,7 @@ class QuAM(QuamComponent):
     qubits: List[Qubit]
     flux_lines: List[Flux_line]
     resonators: List[Resonator]
+    octaves: List[Octave]
     network: Network
     global_parameters: Global_parameters
     

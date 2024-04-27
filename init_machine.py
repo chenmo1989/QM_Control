@@ -1,6 +1,6 @@
 from quam import QuAM
 
-machine = QuAM("quam_bootstrap_state.json", flat_data = False)
+machine = QuAM("quam_bootstrap_state.json")
 
 qubits_name = ["q" + str(i) for i in range(1, 7)]
 qubits_connectivity = [(3, 4, 3, "con1")]
@@ -16,45 +16,47 @@ TWPA_pwr = [-10.0,-10.0,-10.0,-11.3,-11.3,-11.3]
 
 for i in range(6):
     machine.qubits.append(
-        {   
+        {
             "name": qubits_name[i],
-            "f_01": qubits_frequencies[i][0],
-            "f_tls": [qubits_frequencies[i][0]],
+            "f_01": qubits_frequencies[i],
+            "f_tls": [],
             "anharmonicity": 180e6,
             "drag_coefficient": 0.0,
             "ac_stark_detuning": 0.0,
-            "x180_length": 40,
+            "x180_length": 40,  # for gaussian wave
             "x180_amp": 0.1,
-            "pi_length": 40,
+            "pi_length": 40,  # for square wave
             "pi_amp": 0.025,
             "pi_length_ef": 80,
-            "pi_amp_ef": 0.015
+            "pi_amp_ef": 0.015,
             "pi_length_tls": [200],
             "pi_amp_tls": [0.3],
             "T1": 2500,
             "T2": 3000,
-            "DC_tuning_curve": [0.0,0.0,0.0],
-            "AC_tuning_curve": [0.0,0.0,0.0],
+            "DC_tuning_curve": [0.0, 0.0, 0.0],
+            "AC_tuning_curve": [0.0, 0.0, 0.0],
             "wiring": {
                 "controller": qubits_connectivity[0][3],
                 "I": qubits_connectivity[0][0],
                 "Q": qubits_connectivity[0][1],
                 "digital_marker": qubits_connectivity[0][2],
             },
-            "hardware_parameters": { # current TLS pulse. Always update using TLS index in experiments
+            "hardware_parameters": {  # current TLS pulse. Always update using TLS index in experiments
                 "pi_length_tls": 200,
                 "pi_amp_tls": 0.3,
+                "RF_output_gain": 0,
             },
         }
     )
 
     machine.flux_lines.append(
-        {   
+        {
             "name": flux_lines_name[i],
             "max_frequency_point": 0.0,
             "flux_pulse_amp": 0.25,
             "flux_pulse_length": 100,
-            "iswap": { # will use baking for these most of the time. No need to define a separate pulse for iswap. Just store parameters here
+            "iswap": {
+                # will use baking for these most of the time. No need to define a separate pulse for iswap. Just store parameters here
                 "length": [16],
                 "level": [0.2],
             },
@@ -63,16 +65,16 @@ for i in range(6):
                 "port": flux_lines_connectivity[i][0],
                 "filter": {"iir_taps": [], "fir_taps": []},
             },
-            "hardware_parameters": { # a general flux pulse. Keep amp = 0.25 to convenient scaling.
+            "hardware_parameters": {  # a general flux pulse. Keep amp = 0.25 to convenient scaling.
                 "Z_delay": 19,
                 "dc_voltage": 0.0,
             },
-        }
+        },
     )
 
 for i in range(6):
         machine.resonators.append(
-        {   
+        {
             "name": resonators_name[i],
             "f_readout": resonators_frequencies[i],
             "depletion_time": 10_000, # keep it, cooldown time for resonator
@@ -90,12 +92,13 @@ for i in range(6):
             },
             "hardware_parameters": { # readout pulse
                 "time_of_flight": 304,
-                "con1_downconversion_offset_I": 0.0,
-                "con1_downconversion_offset_Q": 0.0,
-                "con1_downconversion_gain": 0,
+                "downconversion_offset_I": 0.0,
+                "downconversion_offset_Q": 0.0,
+                "downconversion_gain": 0,
                 "RO_delay": 0,
                 "RO_attenuation": [ROI[i], 10],
                 "TWPA": [TWPA_freq[i], TWPA_pwr[i]], 
+                "RF_output_gain": 0,
             },
         }
     )

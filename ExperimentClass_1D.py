@@ -28,7 +28,6 @@ import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
-import Labber
 
 warnings.filterwarnings("ignore")
 
