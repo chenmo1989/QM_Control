@@ -5,6 +5,7 @@ written by Mo Chen in April, 2024
 from qm import QuantumMachinesManager
 from qm.octave import *
 from qm.octave.octave_manager import ClockMode
+from qm.octave.octave_mixer_calibration import AutoCalibrationParams
 from configuration import *
 import json
 from quam import QuAM
@@ -53,9 +54,6 @@ class EH_Octave:
 		
 		:return: machine
 		"""
-		if machine is None:
-			machine = QuAM('quam_state.json')
-
 		if log_flag:
 			qmm = QuantumMachinesManager(host = machine.network.qop_ip, port='9510', octave=octave_config)
 		else:
@@ -65,22 +63,27 @@ class EH_Octave:
 		qubits = [machine.qubits[qubit_index].name]
 		resonators = [machine.resonators[res_index].name]
 
+		params = AutoCalibrationParams() # so I can calibrate for the pi pulse amplitude! Default is 125 mV, which is generally too high!
+		
 		if calibration_flag:
 			if TLS_index is None:
+				params.if_amplitude = machine.qubits[qubit_index].pi_amp
 				if_freq_tmp = machine.qubits[qubit_index].f_01 - machine.octave.LO2.LO_frequency
 			else:
+				params.if_amplitude = machine.qubits[qubit_index].pi_amp_TLS[TLS_index]
 				if_freq_tmp = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octave.LO2.LO_frequency
 
 			print("-" * 37 + " Octave calibration starts...")
 			for element in qubits:
 		        print("-" * 37 + f" Calibrates {element}")
 		        # print(f"------------------------------------- Calibrates q{qubit_index:.0f} for (LO, IF) = ({machine.qubits[qubit_index].lo/1E9:.3f} GHz, {(machine.qubits[qubit_index].f_01 - machine.qubits[qubit_index].lo)/1E6: .3f} MHz)")
-		        qm.calibrate_element(element, {machine.octave.LO2.LO_frequency: (if_freq_tmp,)})  # can provide many IFs in the tuple for the same LO
+		        qm.calibrate_element(element, {machine.octave.LO2.LO_frequency: (if_freq_tmp,)}, params = params)  # can provide many IFs in the tuple for the same LO
 		    if qubit_only is not True:
+		    	params.if_amplitude = machine.resonators[res_index].readout_pulse_amp
 		        for element in resonators:
 			        print("-" * 37 + f" Calibrates {element}")
 			        # print(f"------------------------------------- Calibrates r{res_index:.0f} for (LO, IF) = ({machine.resonators[res_index].lo/1E9:.3f} GHz, {(machine.resonators[res_index].f_readout - machine.resonators[res_index].lo)/1E6: .3f} MHz)")
-					qm.calibrate_element(element, {machine.octave.LO1.LO_frequency: (machine.resonators[res_index].f_readout - machine.octave.LO1.LO_frequency,)})  # can provide many IFs in the tuple for the same LO
+					qm.calibrate_element(element, {machine.octave.LO1.LO_frequency: (machine.resonators[res_index].f_readout - machine.octave.LO1.LO_frequency,)}, params = params)  # can provide many IFs in the tuple for the same LO
 			print("-" * 37 + " Octave calibration finished.")
 		else: # only setting Octave LO, no calibration
 			print("-" * 37 + " Setting Octave LO only...")

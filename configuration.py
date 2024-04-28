@@ -204,7 +204,7 @@ def build_config(quam: QuAM):
                 quam.resonators[i].name: {
                     "RF_inputs": {"port": ("octave1", 1)},
                     "RF_outputs": {"port": ("octave1", 1)},
-                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octave.LO1.LO_frequency), 
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.quam.octaves[0].LO_sources[0].LO_frequency), 
                     "operations": {
                         "cw": "const_pulse",
                         "readout": f"readout_pulse_q{i}",
@@ -225,7 +225,7 @@ def build_config(quam: QuAM):
                 quam.resonators[i].name+"aux": {
                     "RF_inputs": {"port": ("octave1", 1)},
                     "RF_outputs": {"port": ("octave1", 1)},
-                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octave.LO1.LO_frequency), 
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octaves[0].LO_sources[0].LO_frequency), 
                     "operations": {
                         "cw": "const_pulse",
                         "readout": f"readout_pulse_q{i}",
@@ -245,7 +245,7 @@ def build_config(quam: QuAM):
             **{
                 quam.qubits[i].name: {
                     "RF_inputs": {"port": ("octave1", 2)},
-                    "intermediate_frequency": (quam.qubits[i].f_01 - quam.octave.LO2.LO_frequency),
+                    "intermediate_frequency": (quam.qubits[i].f_01 - quam.octaves[0].LO_sources[1].LO_frequency),
                     "operations": {
                         "cw": "const_pulse",
                         "pi": f"pi_pulse{i}",

@@ -212,9 +212,9 @@ def ham(dc_flux, wr, Ec, Ej, c, phi0, g, output_flag):
     freq_sys = []
 
     # Hamiltonian as a function of flux
-    for k in range(np.size(dc_flux)):
+    for dc_value in dc_flux:
         H = wr * a.dag() * a + (np.sqrt(8 * Ec * Ej * np.abs(
-            np.cos(phi_flux_rr(dc_flux[k], c,
+            np.cos(phi_flux_rr(dc_value, c,
                                     phi0)))) - Ec) * b.dag() * b - Ec / 2 * b.dag() * b.dag() * b * b + g * (
                     a * b.dag() + a.dag() * b)
         w, v = np.linalg.eig(H)
