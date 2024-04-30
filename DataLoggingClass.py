@@ -27,29 +27,22 @@ import Labber
 class DataLoggingHandle:
 
 	def __init__(self):
-		now = datetime.datetime.now()
-		year = now.strftime("%Y")
-		month = now.strftime("%m")
-		day = now.strftime("%d") 
-		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
-		if not os.path.exists(tPath):
-			os.makedirs(tPath)
-		self.tPath = tPath
+
 
 	def save(self, xrdataset):
+		# timestamp
 		created_timestamp_string = xrdataset.attrs["base_params"]["created"]
 		created_timestamp = datetime.strptime(created_timestamp_string, datetime_format_string)
-
+		# add non-QM machine settings
+		xrdataset.attrs['machine_params_non_QM'] = self.save_machien_params_non_QM()
+		
 		tPath = self.generate_save_path(created_timestamp)
-
+		xrdataset.attrs["base_params"]["directory"] = tPath
 		result_filepath = os.path.join(tPath, self.generate_filename(xrdataset.attrs["base_params"]["description"], created_timestamp, tPath))
-
 		xrdataset.to_netcdf(result_filepath)
-
-		return 
+		print('-'*10 + 'saved to ' + result_filepath) 
 
 	def generate_save_path(self, created_timestamp):
-
 		year = created_timestamp.strftime("%Y")
 		month = created_timestamp.strftime("%m")
 		day = created_timestamp.strftime("%d")
@@ -65,29 +58,23 @@ class DataLoggingHandle:
 		date = '{}'.format(created_timestamp.strftime('%Y-%m-%d'))
 
     	if num_file > 0:
-    		tFilename = "{}_{}.nc".format(expt_prefix, date)
+    		tFilename = "{}_{}.nc".format(date, expt_prefix)
     	else:
-    		tFilename = "{}_{}_{}.nc".format(expt_prefix, date, num_file+1)
+    		tFilename = "{}_{}_{}.nc".format(date, expt_prefix, num_file+1)
 
 		return tFilename
 
 	def save_machien_params_non_QM(self):
+		machine_params_non_QM = {}
 		client = Labber.connectToServer('localhost')  # get list of instruments
-
-		# reset all QDevil channels to 0 V
-		QDevil = client.connectToInstrument('QDevil QDAC', dict(interface='Serial', address='3'))
-
+		for keys in client.getListOfInstruments():
+			if keys[1]['interface'] != 'None':
+				instru = client.connectToInstrument(keys[0], dict(interface = keys[1]['interface'], address = keys[1]['address'])) # connect to Instrument
+				if instru.isRunning():
+					machine_params_non_QM[keys[0]] = instrument_obj.getInstrConfig()
+		
 		client.close()
 
-
-	def update_tPath(self):
-		now = datetime.datetime.now()
-		year = now.strftime("%Y")
-		month = now.strftime("%m")
-		day = now.strftime("%d") 
-		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
-		if not os.path.exists(tPath):
-			os.makedirs(tPath)
-		self.tPath = tPath
+		return machine_params_non_QM
 
 
