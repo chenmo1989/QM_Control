@@ -20,9 +20,6 @@ from scipy.signal import savgol_filter
 from qutip import *
 from typing import Union
 from macros import *
-import datetime
-import os
-import time
 import warnings
 import json
 import matplotlib.pyplot as plt
@@ -44,8 +41,6 @@ class EH_exp1D:
 	Attributes:
 
 	Methods (useful ones):
-		update_tPath: reference to Experiment.update_tPath
-		update_str_datetime: reference to Experiment.update_str_datetime
 		set_Labber:
 		set_octave:
 		RR: a class for running readout resonator related experiments
@@ -56,8 +51,6 @@ class EH_exp1D:
 		DD: a class for running Dynamical Decoupling sequence based experiments
 	"""
 	def __init__(self,ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave, ref_to_set_Labber):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
 		self.set_Labber = ref_to_set_Labber
 		self.set_octave = ref_to_set_octave
 		self.RR = EH_RR(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)

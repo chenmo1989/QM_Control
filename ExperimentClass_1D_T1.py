@@ -5,6 +5,7 @@ class EH_T1:
 		self.set_octave = ref_to_set_octave
 
 	def qubit_T1(self, machine, tau_sweep_abs, qubit_index, res_index, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+		
 		"""
 		runs qubit T1. Designed to be at fixed 0 fast flux.
 

@@ -13,10 +13,17 @@ from qualang_tools.loops import from_array
 from configuration import u
 import time
 
+
+##############
+# non-QUA macros #
+##############
+def datetime_format_string():
+    return "%Y-%m-%d %H:%M:%S"
+
+
 ##############
 # QUA macros #
 ##############
-
 def wait_until_job_is_paused(current_job):
     """
     Waits until the OPX FPGA reaches the pause statement.

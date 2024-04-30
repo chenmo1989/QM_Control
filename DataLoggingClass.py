@@ -3,67 +3,91 @@ This file contains useful python functions to log data
 written by Mo Chen in April 2024
 """
 from qm.qua import *
-from qm.QuantumMachinesManager import QuantumMachinesManager
-from qm import SimulationConfig, LoopbackInterface, generate_qua_script
-from qm.octave import *
-from qm.octave.octave_manager import ClockMode
-from configuration import *
+from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
 from scipy import signal
-from qualang_tools.bakery import baking
 from qualang_tools.units import unit
 from qm.octave import QmOctaveConfig
-from set_octave import ElementsSettings, octave_settings
 from quam import QuAM
-from scipy.io import savemat, loadmat
-from scipy.optimize import curve_fit, minimize
-from scipy.signal import savgol_filter
-from qutip import *
 from typing import Union
-from macros import *
-import datetime
-import os
-import time
 import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
+import pandas as pd
 
-warnings.filterwarnings("ignore")
+import datetime
+import os
+import time
+import glob
+from macros import datetime_format_string
 
-# improt experiments
-from ExperimentClass_1D_RR import EH_RR
-from ExperimentClass_1D_Rabi import EH_Rabi
-from ExperimentClass_1D_T1 import EH_T1
-from ExperimentClass_1D_SWAP import EH_SWAP
-from ExperimentClass_1D_Ramsey import EH_Ramsey
-from ExperimentClass_1D_DD import EH_DD
+import Labber
 
-class EH_exp1D:
-	"""
-	Class for running 1D experiments
-	Attributes:
+class DataLoggingHandle:
 
-	Methods (useful ones):
-		update_tPath: reference to Experiment.update_tPath
-		update_str_datetime: reference to Experiment.update_str_datetime
-		set_Labber:
-		set_octave:
-		RR: a class for running readout resonator related experiments
-		Rabi: a class for running Rabi sequence based experiments
-		T1: a class for running T1 sequence based experiments
-		SWAP: a class for running SWAP sequence based experiments
-		Ramsey: a class for running Ramsey sequence based experiments
-		DD: a class for running Dynamical Decoupling sequence based experiments
-	"""
-	def __init__(self,ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave, ref_to_set_Labber):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
-		self.set_Labber = ref_to_set_Labber
-		self.set_octave = ref_to_set_octave
-		self.RR = EH_RR(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)
-		self.Rabi = EH_Rabi(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)
-		self.SWAP = EH_SWAP(ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave)
-		self.DD = EH_DD(ref_to_update_tPath,ref_to_update_str_datetime, ref_to_set_octave)
-		self.T1 = EH_T1(ref_to_update_tPath,ref_to_update_str_datetime, ref_to_set_octave)
-		self.Ramsey = EH_Ramsey(ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave)
+	def __init__(self):
+		now = datetime.datetime.now()
+		year = now.strftime("%Y")
+		month = now.strftime("%m")
+		day = now.strftime("%d") 
+		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
+		if not os.path.exists(tPath):
+			os.makedirs(tPath)
+		self.tPath = tPath
+
+	def save(self, xrdataset):
+		created_timestamp_string = xrdataset.attrs["base_params"]["created"]
+		created_timestamp = datetime.strptime(created_timestamp_string, datetime_format_string)
+
+		tPath = self.generate_save_path(created_timestamp)
+
+		result_filepath = os.path.join(tPath, self.generate_filename(xrdataset.attrs["base_params"]["description"], created_timestamp, tPath))
+
+		xrdataset.to_netcdf(result_filepath)
+
+		return 
+
+	def generate_save_path(self, created_timestamp):
+
+		year = created_timestamp.strftime("%Y")
+		month = created_timestamp.strftime("%m")
+		day = created_timestamp.strftime("%d")
+		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
+		if not os.path.exists(tPath):
+			os.makedirs(tPath)
+		self.tPath = tPath
+		return tPath
+
+	def generate_filename(self, expt_prefix, created_timestamp, tPath):
+		num_file = len(glob.glob(tPath + expt_prefix+'*'))
+
+		date = '{}'.format(created_timestamp.strftime('%Y-%m-%d'))
+
+    	if num_file > 0:
+    		tFilename = "{}_{}.nc".format(expt_prefix, date)
+    	else:
+    		tFilename = "{}_{}_{}.nc".format(expt_prefix, date, num_file+1)
+
+		return tFilename
+
+	def save_machien_params_non_QM(self):
+		client = Labber.connectToServer('localhost')  # get list of instruments
+
+		# reset all QDevil channels to 0 V
+		QDevil = client.connectToInstrument('QDevil QDAC', dict(interface='Serial', address='3'))
+
+		client.close()
+
+
+	def update_tPath(self):
+		now = datetime.datetime.now()
+		year = now.strftime("%Y")
+		month = now.strftime("%m")
+		day = now.strftime("%d") 
+		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
+		if not os.path.exists(tPath):
+			os.makedirs(tPath)
+		self.tPath = tPath
+
 
