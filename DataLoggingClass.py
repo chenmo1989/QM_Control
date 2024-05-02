@@ -2,16 +2,9 @@
 This file contains useful python functions to log data
 written by Mo Chen in April 2024
 """
-from qm.qua import *
-from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
-from scipy import signal
-from qualang_tools.units import unit
-from qm.octave import QmOctaveConfig
 from quam import QuAM
 from typing import Union
-import warnings
 import json
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -28,43 +21,73 @@ class DataLoggingHandle:
 
 	def __init__(self):
 
+	def save(self, expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence):
+		# save base attributes
+		expt_dataset.attrs['created'] = timestamp_created.strftime(datetime_format_string())
+		expt_dataset.attrs['finished'] = timestamp_finished.strftime(datetime_format_string())
+		expt_dataset.attrs['name'] = expt_name
+		expt_dataset.attrs['long_name'] = expt_long_name
+		expt_dataset.attrs['qubit'] = expt_qubits
+		expt_dataset.attrs['TLS'] = expt_TLS
+		expt_dataset.attrs['sequence'] = expt_sequence
 
-	def save(self, xrdataset):
-		# timestamp
-		created_timestamp_string = xrdataset.attrs["base_params"]["created"]
-		created_timestamp = datetime.strptime(created_timestamp_string, datetime_format_string)
+		# add units to coordinates
+		expt_dataset = self.add_attrs_units(expt_dataset)
+		# add description
+		expt_dataset = self.add_description(expt_dataset)
 		# add non-QM machine settings
-		xrdataset.attrs['machine_params_non_QM'] = self.save_machien_params_non_QM()
-		
-		tPath = self.generate_save_path(created_timestamp)
-		xrdataset.attrs["base_params"]["directory"] = tPath
-		result_filepath = os.path.join(tPath, self.generate_filename(xrdataset.attrs["base_params"]["description"], created_timestamp, tPath))
-		xrdataset.to_netcdf(result_filepath)
-		print('-'*10 + 'saved to ' + result_filepath) 
+		expt_dataset.attrs['machine_params_non_QM'] = self.save_machine_params_non_QM()
 
-	def generate_save_path(self, created_timestamp):
-		year = created_timestamp.strftime("%Y")
-		month = created_timestamp.strftime("%m")
-		day = created_timestamp.strftime("%d")
+		# generate path, filename, save directory
+		tPath = self.generate_save_path(timestamp_created)
+		result_filepath = os.path.join(tPath, self.generate_filename(expt_dataset.attrs["description"], timestamp_created, tPath)) # without extension
+		expt_dataset.attrs["directory"] = result_filepath
+		# save data and json settings
+		print('-'*10 + 'saved to ' + result_filepath) 
+		expt_dataset.to_netcdf(result_filepath + '.nc')
+		machine._save(result_filepath + '.json')
+		
+		return expt_dataset
+
+	def add_description(self, expt_dataset):
+		describ_text = ''
+		for qubit in expt_dataset.attrs['qubit']:
+			describ_text = describ_text + '-' + qubit
+		for tls in expt_dataset.attrs['TLS']:
+			describ_text = describ_text + '-' + tls
+		expt_dataset.attrs['description'] = "{}_{}".format(describ_text, expt_dataset.attrs['name'])
+		return expt_dataset
+
+	def generate_save_path(self, timestamp_created):
+		year = timestamp_created.strftime("%Y")
+		month = timestamp_created.strftime("%m")
+		day = timestamp_created.strftime("%d")
 		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
 		if not os.path.exists(tPath):
 			os.makedirs(tPath)
 		self.tPath = tPath
 		return tPath
 
-	def generate_filename(self, expt_prefix, created_timestamp, tPath):
+	def generate_filename(self, expt_prefix, timestamp_created, tPath):
 		num_file = len(glob.glob(tPath + expt_prefix+'*'))
 
-		date = '{}'.format(created_timestamp.strftime('%Y-%m-%d'))
+		date = '{}'.format(timestamp_created.strftime('%Y-%m-%d'))
 
     	if num_file > 0:
-    		tFilename = "{}_{}.nc".format(date, expt_prefix)
+    		tFilename = "{}_{}".format(date, expt_prefix)
     	else:
-    		tFilename = "{}_{}_{}.nc".format(date, expt_prefix, num_file+1)
+    		tFilename = "{}_{}_{}".format(date, expt_prefix, num_file+1)
 
 		return tFilename
 
-	def save_machien_params_non_QM(self):
+	def save_machine_params_QM(self, expt_dataset, machine):
+		machine_params_QM = {}
+		for keys in machine:
+			machine_params_QM[keys] = machine[keys]
+		expt_dataset.attrs['machine_params_QM'] = machine_params_QM
+		return expt_dataset
+
+	def save_machine_params_non_QM(self):
 		machine_params_non_QM = {}
 		client = Labber.connectToServer('localhost')  # get list of instruments
 		for keys in client.getListOfInstruments():
@@ -77,4 +100,23 @@ class DataLoggingHandle:
 
 		return machine_params_non_QM
 
+	def add_attrs_units(self, expt_dataset):
+		# coordinate units
+		for keys in expt_dataset.coords:
+			if 'Flux' in keys:
+				expt_dataset[keys].attrs['units'] = 'V'
+			elif 'Time' in keys:
+				expt_dataset[keys].attrs['units'] = 'ns'
+			elif 'Frequency' in keys:
+				expt_dataset[keys].attrs['units'] = 'Hz'
+			elif 'Phase' in keys:
+				expt_dataset[keys].attrs['units'] = 'rad'
+			elif 'Delay' in keys:
+				expt_dataset[keys].attrs['units'] = 'ns'
+		# data units
+		if 'pe' in expt_dataset:
+			expt_dataset.attrs['units'] = '' # population Pe, unit is 1
+		elif 'I' in expt_dataset.attrs:
+			expt_dataset.attrs['units'] = 'V'
+		return expt_dataset
 

@@ -43,6 +43,7 @@ class EH_exp1D:
 	Methods (useful ones):
 		set_Labber:
 		set_octave:
+		datalogs: 
 		RR: a class for running readout resonator related experiments
 		Rabi: a class for running Rabi sequence based experiments
 		T1: a class for running T1 sequence based experiments
@@ -50,13 +51,14 @@ class EH_exp1D:
 		Ramsey: a class for running Ramsey sequence based experiments
 		DD: a class for running Dynamical Decoupling sequence based experiments
 	"""
-	def __init__(self,ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave, ref_to_set_Labber):
-		self.set_Labber = ref_to_set_Labber
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
 		self.set_octave = ref_to_set_octave
-		self.RR = EH_RR(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)
-		self.Rabi = EH_Rabi(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)
-		self.SWAP = EH_SWAP(ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave)
-		self.DD = EH_DD(ref_to_update_tPath,ref_to_update_str_datetime, ref_to_set_octave)
-		self.T1 = EH_T1(ref_to_update_tPath,ref_to_update_str_datetime, ref_to_set_octave)
-		self.Ramsey = EH_Ramsey(ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave)
+		self.set_Labber = ref_to_set_Labber
+		self.datalogs = ref_to_datalogs
+		self.RR = EH_RR(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.Rabi = EH_Rabi(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.SWAP = EH_SWAP(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.DD = EH_DD(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.T1 = EH_T1(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.Ramsey = EH_Ramsey(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
 

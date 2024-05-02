@@ -4,15 +4,15 @@ class EH_SWAP:
 	Methods:
 		update_tPath
 		update_str_datetime
-		qubit_freq(self, qubit_freq_sweep, qubit_index, res_index, flux_index, n_avg, cd_time, ff_amp = 1.0, simulate_flag = False, simulation_len = 1000)
+		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg, cd_time, ff_amp = 1.0, simulate_flag = False, simulation_len = 1000)
 	"""
 
-	def __init__(self, ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
 		self.set_octave = ref_to_set_octave
+		self.set_Labber = ref_to_set_Labber
+		self.datalogs = ref_to_datalogs
 
-	def rabi_SWAP(self, machine, rabi_duration_sweep, qubit_index, res_index, flux_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rabi_SWAP(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		1D experiment: qubit rabi (length sweep) - SWAP - measure
 		qubit rabi duration in clock cycle
@@ -21,8 +21,6 @@ class EH_SWAP:
 			machine
 			rabi_duration_sweep (): in clock cycle!
 			qubit_index ():
-			res_index ():
-			flux_index ():
 			TLS_index ():
 			pi_amp_rel ():
 			n_avg ():
@@ -36,8 +34,7 @@ class EH_SWAP:
 			rabi_duration_sweep * 4: in ns
 			sig_amp
 		"""
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		if min(rabi_duration_sweep) < 4:
 			print("some rabi lengths shorter than 4 clock cycles, removed from run")
@@ -46,16 +43,16 @@ class EH_SWAP:
 		rabi_duration_sweep = rabi_duration_sweep.astype(int)
 
 		# fLux pulse baking for SWAP
-		swap_length = machine.flux_lines[flux_index].iswap.length[TLS_index]
-		swap_amp = machine.flux_lines[flux_index].iswap.level[TLS_index]
+		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
+		swap_amp = machine.flux_lines[qubit_index].iswap.level[TLS_index]
 		flux_waveform = np.array([swap_amp] * swap_length)
 
 		def baked_swap_waveform(waveform):
 			pulse_segments = []  # Stores the baking objects
 			# Create the different baked sequences, each one corresponding to a different truncated duration
 			with baking(config, padding_method="right") as b:
-				b.add_op("flux_pulse", machine.flux_lines[flux_index].name, waveform.tolist())
-				b.play("flux_pulse", machine.flux_lines[flux_index].name)
+				b.add_op("flux_pulse", machine.flux_lines[qubit_index].name, waveform.tolist())
+				b.play("flux_pulse", machine.flux_lines[qubit_index].name)
 				pulse_segments.append(b)
 			return pulse_segments
 		square_TLS_swap = baked_swap_waveform(flux_waveform)
@@ -72,12 +69,12 @@ class EH_SWAP:
 					align()
 					square_TLS_swap[0].run()
 					align()
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					align()
-					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[flux_index].name, -1)])
+					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					align()
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
@@ -95,7 +92,7 @@ class EH_SWAP:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(time_rabi)
@@ -127,8 +124,8 @@ class EH_SWAP:
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
 			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 			sig_amp = np.sqrt(I ** 2 + Q ** 2)
 			sig_phase = np.angle(I + 1j * Q)
 
@@ -142,9 +139,9 @@ class EH_SWAP:
 					{"Q_rabi_duration": rabi_duration_sweep * 4, "sig_amp": sig_amp, "sig_phase": sig_phase})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			return machine, rabi_duration_sweep * 4, sig_amp
+			return machine, expt_dataset
 
-	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, res_index, flux_index, TLS_index, n_avg, cd_time, simulate_flag=False, simulation_len=1000, plot_flag=True):
+	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, TLS_index, n_avg, cd_time, simulate_flag=False, simulation_len=1000, plot_flag=True):
 		"""
 		1D SWAP spectroscopy. qubit pi - SWAP (sweep Z duration) - measure
 		tau_sweep in ns, only takes multiples of 4ns
@@ -153,8 +150,6 @@ class EH_SWAP:
 			machine
 			tau_sweep_abs ():
 			qubit_index ():
-			res_index ():
-			flux_index ():
 			TLS_index ():
 			n_avg ():
 			cd_time ():
@@ -168,8 +163,7 @@ class EH_SWAP:
 			sig_amp
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		tau_sweep_cc = tau_sweep_abs // 4  # in clock cycles
 		tau_sweep_cc = np.unique(tau_sweep_cc)
@@ -185,15 +179,15 @@ class EH_SWAP:
 				with for_(*from_array(t, tau_sweep)):
 					play("pi", machine.qubits[qubit_index].name)
 					align()
-					play("iswap", machine.flux_lines[flux_index].name, duration=t)
+					play("iswap", machine.flux_lines[qubit_index].name, duration=t)
 					align()
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 					align()
 					wait(50)
-					play("iswap" * amp(-1), machine.flux_lines[flux_index].name, duration=t)
+					play("iswap" * amp(-1), machine.flux_lines[qubit_index].name, duration=t)
 					save(I, I_st)
 					save(Q, Q_st)
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -212,7 +206,7 @@ class EH_SWAP:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, iswap, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(iswap)
@@ -241,7 +235,7 @@ class EH_SWAP:
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
 			savemat(os.path.join(tPath, file_name),
-					{"ff_amp": machine.flux_lines[flux_index].iswap.level[TLS_index], "sig_amp": sig_amp, "sig_phase": sig_phase,
+					{"ff_amp": machine.flux_lines[qubit_index].iswap.level[TLS_index], "sig_amp": sig_amp, "sig_phase": sig_phase,
 					 "tau_sweep": tau_sweep_abs})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
@@ -251,9 +245,9 @@ class EH_SWAP:
 				plt.ylabel("Signal Amplitude (V)")
 				plt.xlabel("interaction time (ns)")
 
-		return machine, tau_sweep_abs, sig_amp
+		return machine, expt_dataset
 
-	def SWAP_rabi(self, machine, rabi_duration_sweep, qubit_index, res_index, flux_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def SWAP_rabi(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		1D experiment for debug: SWAP - qubit rabi (sweep duration) - measure
 
@@ -261,8 +255,6 @@ class EH_SWAP:
 			machine
 			rabi_duration_sweep (): in clock cycle
 			qubit_index ():
-			res_index ():
-			flux_index ():
 			TLS_index ():
 			pi_amp_rel ():
 			n_avg ():
@@ -277,8 +269,7 @@ class EH_SWAP:
 			sig_amp
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		if min(rabi_duration_sweep) < 4:
 			print("some rabi lengths shorter than 4 clock cycles, removed from run")
@@ -287,16 +278,16 @@ class EH_SWAP:
 		rabi_duration_sweep = rabi_duration_sweep.astype(int)
 
 		# fLux pulse baking for SWAP
-		swap_length = machine.flux_lines[flux_index].iswap.length[TLS_index]
-		swap_amp = machine.flux_lines[flux_index].iswap.level[TLS_index]
+		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
+		swap_amp = machine.flux_lines[qubit_index].iswap.level[TLS_index]
 		flux_waveform = np.array([swap_amp] * swap_length)
 
 		def baked_swap_waveform(waveform):
 			pulse_segments = []  # Stores the baking objects
 			# Create the different baked sequences, each one corresponding to a different truncated duration
 			with baking(config, padding_method="right") as b:
-				b.add_op("flux_pulse", machine.flux_lines[flux_index].name, waveform.tolist())
-				b.play("flux_pulse", machine.flux_lines[flux_index].name)
+				b.add_op("flux_pulse", machine.flux_lines[qubit_index].name, waveform.tolist())
+				b.play("flux_pulse", machine.flux_lines[qubit_index].name)
 				pulse_segments.append(b)
 			return pulse_segments
 		square_TLS_swap = baked_swap_waveform(flux_waveform)
@@ -313,12 +304,12 @@ class EH_SWAP:
 					play("pi" * amp(pi_amp_rel), machine.qubits[qubit_index].name, duration=t)
 					wait(5, machine.qubits[qubit_index].name)
 					align()
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					align()
-					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[flux_index].name, -1)])
+					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					align()
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
@@ -336,7 +327,7 @@ class EH_SWAP:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(time_rabi)
@@ -368,8 +359,8 @@ class EH_SWAP:
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
 			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 			sig_amp = np.sqrt(I ** 2 + Q ** 2)
 			sig_phase = np.angle(I + 1j * Q)
 
@@ -383,9 +374,9 @@ class EH_SWAP:
 					{"Q_rabi_duration": rabi_duration_sweep * 4, "sig_amp": sig_amp, "sig_phase": sig_phase})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			return machine, rabi_duration_sweep * 4, sig_amp
+			return machine, expt_dataset
 
-	def rabi_SWAP2(self, machine rabi_duration_sweep, qubit_index, res_index, flux_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rabi_SWAP2(self, machine rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		1D experiment: qubit rabi (sweep duration) - SWAP - SWAP, to see if the state comes back
 
@@ -393,8 +384,6 @@ class EH_SWAP:
 			machine
 			rabi_duration_sweep (): in clock cycle
 			qubit_index ():
-			res_index ():
-			flux_index ():
 			TLS_index ():
 			pi_amp_rel ():
 			n_avg ():
@@ -408,8 +397,7 @@ class EH_SWAP:
 			rabi_duration_sweep * 4
 			sig_amp
 		"""
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		if min(rabi_duration_sweep) < 4:
 			print("some rabi lengths shorter than 4 clock cycles, removed from run")
@@ -418,16 +406,16 @@ class EH_SWAP:
 		rabi_duration_sweep = rabi_duration_sweep.astype(int)
 
 		# fLux pulse baking for SWAP
-		swap_length = machine.flux_lines[flux_index].iswap.length[TLS_index]
-		swap_amp = machine.flux_lines[flux_index].iswap.level[TLS_index]
+		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
+		swap_amp = machine.flux_lines[qubit_index].iswap.level[TLS_index]
 		flux_waveform = np.array([swap_amp] * swap_length)
 
 		def baked_swap_waveform(waveform):
 			pulse_segments = []  # Stores the baking objects
 			# Create the different baked sequences, each one corresponding to a different truncated duration
 			with baking(config, padding_method="right") as b:
-				b.add_op("flux_pulse", machine.flux_lines[flux_index].name, waveform.tolist())
-				b.play("flux_pulse", machine.flux_lines[flux_index].name)
+				b.add_op("flux_pulse", machine.flux_lines[qubit_index].name, waveform.tolist())
+				b.play("flux_pulse", machine.flux_lines[qubit_index].name)
 				pulse_segments.append(b)
 			return pulse_segments
 		square_TLS_swap = baked_swap_waveform(flux_waveform)
@@ -446,14 +434,14 @@ class EH_SWAP:
 					wait(5)
 					square_TLS_swap[0].run()
 					align()
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					align()
-					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[flux_index].name, -1)])
+					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					wait(5)
-					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[flux_index].name, -1)])
+					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					align()
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
@@ -471,7 +459,7 @@ class EH_SWAP:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(time_rabi)
@@ -503,8 +491,8 @@ class EH_SWAP:
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
 			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 			sig_amp = np.sqrt(I ** 2 + Q ** 2)
 			sig_phase = np.angle(I + 1j * Q)
 
@@ -518,4 +506,4 @@ class EH_SWAP:
 					{"Q_rabi_duration": rabi_duration_sweep * 4, "sig_amp": sig_amp, "sig_phase": sig_phase})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			return machine, rabi_duration_sweep * 4, sig_amp
+			return machine, expt_dataset

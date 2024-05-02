@@ -2,7 +2,7 @@ class EH_1D:
 	"""
 	class for some 1D experiments used for 2D scans
 	"""
-	def res_freq(self, machine, res_freq_sweep, res_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, fig = None):
+	def res_freq(self, machine, res_freq_sweep, qubit_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, fig = None):
 		"""
 		resonator spectroscopy experiment
 		this experiment find the resonance frequency by localizing the minima in pulsed transmission signal.
@@ -10,7 +10,7 @@ class EH_1D:
 		Args:
 		:param machine
 		:param res_freq_sweep: 1D array for resonator frequency sweep
-		:param res_index:
+		:param qubit_index:
 		:param n_avg: repetition of expeirment
 		:param cd_time: cooldown time between subsequent experiments
 		:param simulate_flag: True-run simulation; False (default)-run experiment.
@@ -39,9 +39,9 @@ class EH_1D:
 
 			with for_(n, 0, n < n_avg, n+1):
 				with for_(*from_array(df,res_if_sweep)):
-					update_frequency(machine.resonators[res_index].name, df)
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					update_frequency(machine.resonators[qubit_index].name, df)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
 				save(n, n_st)
@@ -74,20 +74,20 @@ class EH_1D:
 			while results.is_processing():
 				# Fetch results
 				I, Q, iteration = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				# progress bar
 				#progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
 			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 
 			return machine, I, Q
 
-	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, res_index, flux_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, fig = None):
+	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, fig = None):
 		"""
 		qubit spectroscopy experiment in 1D (equivalent of ESR for spin qubit)
 		this 1D experiment is not automatically saved
@@ -95,8 +95,6 @@ class EH_1D:
 		:param machine
 		:param qubit_freq_sweep: 1D array of qubit frequency sweep
 		:param qubit_index:
-		:param res_index:
-		:param flux_index:
 		:param n_avg: repetition of the experiments
 		:param cd_time: cooldown time between subsequent experiments
 		:param ff_amp: fast flux amplitude the overlaps with the Rabi pulse. The ff pulse is 40ns longer than Rabi pulse, and share the same center time.
@@ -130,18 +128,18 @@ class EH_1D:
 			with for_(n, 0, n < n_avg, n+1):
 				with for_(*from_array(df,qubit_if_sweep)):
 					update_frequency(machine.qubits[qubit_index].name, df)
-					play("const" * amp(ff_amp), machine.flux_lines[flux_index].name, duration=ff_duration * u.ns)
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 					wait(5, machine.qubits[qubit_index].name)
 					play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
-					align(machine.qubits[qubit_index].name, machine.flux_lines[flux_index].name,
-						  machine.resonators[res_index].name)
+					align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+						  machine.resonators[qubit_index].name)
 					#wait(4) # avoid overlap between Z and RO
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 					align()
 					wait(50)
 					# eliminate charge accumulation
-					play("const" * amp(-1 * ff_amp), machine.flux_lines[flux_index].name, duration=ff_duration * u.ns)
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
 				save(n, n_st)
@@ -174,16 +172,16 @@ class EH_1D:
 				time.sleep(0.1)
 				# Fetch results
 				# I, Q, iteration = results.fetch_all()
-				# I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-				# Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+				# I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				# Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				# progress bar
 				# progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
 			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 
 			return machine, I, Q
 

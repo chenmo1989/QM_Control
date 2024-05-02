@@ -16,13 +16,10 @@ class EH_Octave:
 	Attributes:
 
 	Methods (useful ones):
-		update_tPath: reference to Experiment.update_tPath
-		update_str_datetime: reference to Experiment.update_str_datetime
+		
 	"""
-	def __init__(self,ref_to_update_tPath, ref_to_update_str_datetime):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
-
+	def __init__(self):
+		
 	def set_clock(self, external_clock = True):
 		"""
 		should set the octave clock to external 10MHz. Note this is automatically run at the initialization of ExperimentClass
@@ -41,12 +38,11 @@ class EH_Octave:
 		
 		return
 
-	def calibration(self,machine, qubit_index, res_index, TLS_index = None, log_flag = True, calibration_flag = True, qubit_only = False):
+	def calibration(self,machine, qubit_index, TLS_index = None, log_flag = True, calibration_flag = True, qubit_only = False):
 		"""
 		calibrates octave, using parameters saved in machine
 		:param machine: must provide
 		:param qubit_index:
-		:param res_index:
 		:param TLS_index: None (default). If not None, then use f_tls[TLS_index] for calibration.
 		:param log_flag: True (default), have warnings from QM; False: ERROR log only
 		:param calibration_flag: True (default). If false, will still update octave configuration, but not run calibration
@@ -61,7 +57,7 @@ class EH_Octave:
 		qm = qmm.open_qm(config)
 
 		qubits = [machine.qubits[qubit_index].name]
-		resonators = [machine.resonators[res_index].name]
+		resonators = [machine.resonators[qubit_index].name]
 
 		params = AutoCalibrationParams() # so I can calibrate for the pi pulse amplitude! Default is 125 mV, which is generally too high!
 		
@@ -79,16 +75,16 @@ class EH_Octave:
 		        # print(f"------------------------------------- Calibrates q{qubit_index:.0f} for (LO, IF) = ({machine.qubits[qubit_index].lo/1E9:.3f} GHz, {(machine.qubits[qubit_index].f_01 - machine.qubits[qubit_index].lo)/1E6: .3f} MHz)")
 		        qm.calibrate_element(element, {machine.octave.LO2.LO_frequency: (if_freq_tmp,)}, params = params)  # can provide many IFs in the tuple for the same LO
 		    if qubit_only is not True:
-		    	params.if_amplitude = machine.resonators[res_index].readout_pulse_amp
+		    	params.if_amplitude = machine.resonators[qubit_index].readout_pulse_amp
 		        for element in resonators:
 			        print("-" * 37 + f" Calibrates {element}")
-			        # print(f"------------------------------------- Calibrates r{res_index:.0f} for (LO, IF) = ({machine.resonators[res_index].lo/1E9:.3f} GHz, {(machine.resonators[res_index].f_readout - machine.resonators[res_index].lo)/1E6: .3f} MHz)")
-					qm.calibrate_element(element, {machine.octave.LO1.LO_frequency: (machine.resonators[res_index].f_readout - machine.octave.LO1.LO_frequency,)}, params = params)  # can provide many IFs in the tuple for the same LO
+			        # print(f"------------------------------------- Calibrates r{qubit_index:.0f} for (LO, IF) = ({machine.resonators[qubit_index].lo/1E9:.3f} GHz, {(machine.resonators[qubit_index].f_readout - machine.resonators[qubit_index].lo)/1E6: .3f} MHz)")
+					qm.calibrate_element(element, {machine.octave.LO1.LO_frequency: (machine.resonators[qubit_index].f_readout - machine.octave.LO1.LO_frequency,)}, params = params)  # can provide many IFs in the tuple for the same LO
 			print("-" * 37 + " Octave calibration finished.")
 		else: # only setting Octave LO, no calibration
 			print("-" * 37 + " Setting Octave LO only...")
 			qm.octave.set_lo_frequency(machine.qubits[qubit_index].name, machine.octave.LO2.LO_frequency) 
-			qm.octave.set_lo_frequency(machine.resonators[res_index].name, machine.octave.LO1.LO_frequency) 
+			qm.octave.set_lo_frequency(machine.resonators[qubit_index].name, machine.octave.LO1.LO_frequency) 
 		return machine
 
 	def set_digital_delay(self, machine, element, delay_value = 57):
@@ -191,16 +187,16 @@ class EH_Octave:
 		machine.octaves[octave_index].LO_sources[1].gain = gain_value
 		return machine
 
-	def set_rf_output_gain_resonator(self, machine, res_index, gain_value = 0, octave_index = 0):
+	def set_rf_output_gain_resonator(self, machine, gain_value = 0, octave_index = 0):
 		"""
-		Sets the RF_output_gain for resonators[res_index]. Not sent to octave yet.
+		Sets the RF_output_gain for resonators[qubit_index]. Not sent to octave yet.
 		:param machine: must have input!
-		:param res_index: 
+		:param qubit_index: 
 		:param gain_value: # can be in the range [-20 : 0.5 : 20]dB
 
 		:return: machine; should take it!
 		"""
-		machine.resonators[res_index].hardware_parameters.RF_output_gain = gain_value
+		machine.resonators[qubit_index].hardware_parameters.RF_output_gain = gain_value
 		machine.octaves[octave_index].LO_sources[0].gain = gain_value
 		return machine
 

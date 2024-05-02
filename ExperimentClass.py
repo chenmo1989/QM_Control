@@ -15,6 +15,7 @@ from ExperimentClass_1D import EH_exp1D
 from ExperimentClass_2D import EH_exp2D
 from ExperimentClass_Labber import EH_Labber
 from ExperimentClass_Octave import EH_Octave
+from DataLoggingClass import DataLoggingHandle
 
 class EH_expsave:
 	def __init__(self):
@@ -22,8 +23,8 @@ class EH_expsave:
 
 class ExperimentHandle:
 	def __init__(self):
-		self.exp1D = EH_exp1D(self.update_tPath,self.update_str_datetime,self.set_octave,self.set_Labber)
-		self.exp2D = EH_exp2D(self.update_tPath,self.update_str_datetime,self.set_octave,self.set_Labber)
-		self.set_Labber = EH_Labber(self.update_tPath,self.update_str_datetime)
-		self.set_octave = EH_Octave(self,update_tPath,self.update_str_datetime)
-
+		self.exp1D = EH_exp1D(self.set_octave,self.set_Labber,self.datalogs)
+		self.exp2D = EH_exp2D(self.set_octave,self.set_Labber,self.datalogs)
+		self.set_Labber = EH_Labber()
+		self.set_octave = EH_Octave()
+		self.datalogs = DataLoggingHandle()

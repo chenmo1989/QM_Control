@@ -63,7 +63,7 @@ class AH_exp2D:
 			init_guess: [wr, Ec, Ej, c, phi0, g] for fitting to the Hamiltonian
 		Return:
 			ham_param: the fitted parameters of the Jaynes-Cummings Hamiltonian. Temporarily saved in AH_exp2D.ham_param.
-				should save to Analysis.ham_param, and machine.resonators[res_index].tuning_curve for long-term storage.
+				should save to Analysis.ham_param, and machine.resonators[qubit_index].tuning_curve for long-term storage.
 		"""
 		# define init_guess for the fitting
 		if init_guess is None:
@@ -125,7 +125,7 @@ class AH_exp2D:
 		Simulation is based on the Jaynes-Cummings model, and parameters extracted from rr_vs_dc_flux experiment.
 		Args:
 			ham_param: default is the value saved in AH_exp2D.ham_param, if we ran rr_vs_dc_flux. This is supposed to
-			be a temporary storage place. Better use Analysis.ham_param, or even better, machine.resonators[res_index].tuning_curve.
+			be a temporary storage place. Better use Analysis.ham_param, or even better, machine.resonators[qubit_index].tuning_curve.
 		Return:
 			poly_param: 2nd order polynomial coefficient for the qubit tuning curve. Temporarily saved in AH_exp2D.poly_param.
 				should save to Analysis.poly_param, and machine.qubits[qubit_index].tuning_curve for long-term storage.
@@ -191,7 +191,7 @@ class AH_exp2D:
 		generates the negative part, so that fit will be symmetric
 		Args:
 			qubit_freq_sweep: 1D array, need to be shaped to 2D, according to np.size(dc_flux_sweep)
-			ff_sweep: 1D array of the fast flux swept values (absolute values! multiplied by machine.flux_lines[flux_index].flux_pulse_amp)
+			ff_sweep: 1D array of the fast flux swept values (absolute values! multiplied by machine.flux_lines[qubit_index].flux_pulse_amp)
 			sig_amp: 1D array of amplitude, same shape as qubit_freq_sweep, need to be shaped to 2D
 		Return:
 			poly_param: the fitted polynomial parameters. Temporarily saved in AH_exp2D.poly_param.

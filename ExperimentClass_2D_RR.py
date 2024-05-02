@@ -4,14 +4,15 @@ class EH_RR:
 	Methods:
 		update_tPath
 		update_str_datetime
-		rr_vs_dc_flux(self, res_freq_sweep, dc_flux_sweep, qubit_index, res_index, flux_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
+		rr_vs_dc_flux(self, res_freq_sweep, dc_flux_sweep, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
 	"""
-	def __init__(self, ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
+	def __init__(self, ref_to_local_exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+		self.exp1D = ref_to_local_exp1D
 		self.set_octave = ref_to_set_octave
+		self.set_Labber = ref_to_set_Labber
+		self.datalogs = ref_to_datalogs
 
-	def rr_vs_dc_flux(self, machine, res_freq_sweep, dc_flux_sweep, qubit_index, res_index, flux_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rr_vs_dc_flux(self, machine, res_freq_sweep, dc_flux_sweep, qubit_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		resonator spectroscopy vs dc flux 2D experiment
 		this is supposed to be some of the first qubit characterization experiment. Purpose is to get an initial estimate
@@ -24,8 +25,6 @@ class EH_RR:
 		:param res_freq_sweep: 1D array for the resonator frequency sweep
 		:param dc_flux_sweep: 1D array for the dc flux sweep
 		:param qubit_index:
-		:param res_index:
-		:param flux_index:
 		:param n_avg: repetition of the experiments
 		:param cd_time: cooldown time between subsequent experiments
 		:param simulate_flag: True-run simulation; False (default)-run experiment.
@@ -38,8 +37,7 @@ class EH_RR:
 			dc_flux_sweep
 			sig_amp
 		"""
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		# 2D scan, RR frequency vs DC flux
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
@@ -48,7 +46,7 @@ class EH_RR:
 
 		if np.max(abs(res_if_sweep)) > 400E6: # check if parameters are within hardware limit
 			print("res if range > 400MHz")
-			return machine, None, None, None
+			return machine, None
 
 		# QDAC communication through Labber
 		client = Labber.connectToServer('localhost')  # get list of instruments
@@ -65,11 +63,11 @@ class EH_RR:
 				with for_(n, 0, n < n_avg, n + 1):
 					with for_(*from_array(df, res_if_sweep)):
 						# Update the resonator frequency
-						update_frequency(machine.resonators[res_index].name, df)
+						update_frequency(machine.resonators[qubit_index].name, df)
 						# Measure the resonator
-						readout_avg_macro(machine.resonators[res_index].name,I,Q)
+						readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 						# Wait for the resonator to cooldown
-						wait(cd_time * u.ns, machine.resonators[res_index].name)
+						wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 						# Save data to the stream processing
 						save(I, I_st)
 						save(Q, Q_st)
@@ -90,7 +88,7 @@ class EH_RR:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, resonator_spec_2D, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(resonator_spec_2D)
@@ -112,8 +110,8 @@ class EH_RR:
 			for m in range(len(dc_flux_sweep)):
 				# set QDAC voltage
 				dc_flux = dc_flux_sweep[m]
-				QDevil.setValue("CH0" + str(flux_index+1) + " Voltage", dc_flux)
-				machine.flux_lines.hardware_parameters[flux_index].dc_voltage = dc_flux + 0E1
+				QDevil.setValue("CH0" + str(qubit_index+1) + " Voltage", dc_flux)
+				machine.flux_lines.hardware_parameters[qubit_index].dc_voltage = dc_flux + 0E1
 
 				# Resume the QUA program
 				job.resume()
@@ -136,7 +134,7 @@ class EH_RR:
 				progress_counter(iteration, len(dc_flux_sweep))
 
 				# Convert results into Volts
-				sigs = u.demod2volts(I + 1j * Q, machine.resonators[res_index].readout_pulse_length)
+				sigs = u.demod2volts(I + 1j * Q, machine.resonators[qubit_index].readout_pulse_length)
 				sig_amp = np.abs(sigs)  # Amplitude
 				sig_phase = np.angle(sigs)  # Phase
 				# Plot results
@@ -152,7 +150,7 @@ class EH_RR:
 
 			I = np.concatenate(I_tot)
 			Q = np.concatenate(Q_tot)
-			sigs = u.demod2volts(I + 1j * Q, machine.resonators[res_index].readout_pulse_length)
+			sigs = u.demod2volts(I + 1j * Q, machine.resonators[qubit_index].readout_pulse_length)
 			sig_amp = np.abs(sigs)  # Amplitude
 			sig_phase = np.angle(sigs)  # Phase
 
@@ -167,9 +165,9 @@ class EH_RR:
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
 		client.close()
-		return machine, res_freq_sweep, dc_flux_sweep, sig_amp
+		return machine, expt_dataset
 
-	def rr_pulse_optimize(self, machine, res_duration_sweep_abs, res_amp_sweep, qubit_index, res_index, n_avg=1E3, cd_time=20E3, simulate_flag=False, simulation_len=1000, plot_flag=True):
+	def rr_pulse_optimize(self, machine, res_duration_sweep_abs, res_amp_sweep, qubit_index, n_avg=1E3, cd_time=20E3, simulate_flag=False, simulation_len=1000, plot_flag=True):
 		"""
 		characterize QND during readout pulse, find the optimal readout amp and duration
 		pi pulse -- variable readout pulse -- readout
@@ -178,7 +176,6 @@ class EH_RR:
 			res_duration_sweep_abs ():
 			res_amp_sweep ():
 			qubit_index ():
-			res_index ():
 			n_avg ():
 			cd_time ():
 			simulate_flag ():
@@ -191,8 +188,7 @@ class EH_RR:
 			res_duration_sweep_abs: 1D
 			sig_amp: 2D
 		"""
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		res_amp_sweep_rel = res_amp_sweep / 0.25 # 0.25 is the amplitude of "cw" pulse/"const_wf"
 		res_duration_sweep_cc = res_duration_sweep_abs // 4  # in clock cycles
@@ -210,12 +206,12 @@ class EH_RR:
 					with for_(*from_array(da, res_amp_sweep_rel)):
 						play("pi", machine.qubits[qubit_index].name)
 						align()
-						play("cw" * amp(da), machine.resonators[res_index].name, duration=t)
+						play("cw" * amp(da), machine.resonators[qubit_index].name, duration=t)
 						align()
-						readout_avg_macro(machine.resonators[res_index].name, I, Q)
+						readout_avg_macro(machine.resonators[qubit_index].name, I, Q)
 						save(I, I_st)
 						save(Q, Q_st)
-						wait(cd_time * u.ns, machine.resonators[res_index].name)
+						wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -234,7 +230,7 @@ class EH_RR:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, rr_pulse_optimize, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(rr_pulse_optimize)
@@ -274,4 +270,4 @@ class EH_RR:
 				plt.xlabel("Signal Amplitude (V)")
 				plt.ylabel("res pulse duration (ns)")
 
-			return machine, res_amp_sweep, res_duration_sweep_abs, sig_amp
+			return machine, expt_dataset

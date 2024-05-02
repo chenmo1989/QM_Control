@@ -4,15 +4,15 @@ class EH_RR: # sub
 	Methods:
 		update_tPath
 		update_str_datetime
-		time_of_flight(self, qubit_index, res_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
-		rr_freq(self, res_freq_sweep, qubit_index, res_index, flux_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
+		time_of_flight(self, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
+		rr_freq(self, res_freq_sweep, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
 	"""
-	def __init__(self, ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
 		self.set_octave = ref_to_set_octave
+		self.set_Labber = ref_to_set_Labber
+		self.datalogs = ref_to_datalogs
 
-	def time_of_flight(self, machine, res_index, n_avg = 5E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000):
+	def time_of_flight(self, machine, n_avg = 5E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000):
 		"""
 		time of flight 1D experiment
 		this experiment calibrates
@@ -23,7 +23,7 @@ class EH_RR: # sub
 
 		Args:
 		:param machine:
-		:param res_index:
+		:param qubit_index:
 		:param n_avg: repetition of expeirment
 		:param cd_time: cooldown time between subsequent experiments
 		:param simulate_flag: True-run simulation; False (default)-run experiment.
@@ -37,8 +37,7 @@ class EH_RR: # sub
 			adc2_single_run
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		with program() as raw_trace_prog:
 			n = declare(int)
@@ -46,9 +45,9 @@ class EH_RR: # sub
 			n_st = declare_stream()
 
 			with for_(n, 0, n < n_avg, n + 1):
-				reset_phase(machine.resonators[res_index].name)
-				measure("readout", machine.resonators[res_index].name, adc_st)
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				reset_phase(machine.resonators[qubit_index].name)
+				measure("readout", machine.resonators[qubit_index].name, adc_st)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n,n_st)
 			with stream_processing():
 				# Will save average:
@@ -81,7 +80,7 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'time_of_flight'
-			qubit_name = 'Q' + str(res_index+1)
+			qubit_name = 'Q' + str(qubit_index+1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
@@ -90,7 +89,7 @@ class EH_RR: # sub
 
 			return machine, adc1,adc2,adc1_single_run,adc2_single_run
 
-	def rr_freq(self, machine, res_freq_sweep, qubit_index, res_index, n_avg = 1E3, cd_time = 20E3, readout_state = 'g', simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rr_freq(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, readout_state = 'g', simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		resonator spectroscopy experiment
 		this experiment find the resonance frequency by localizing the minima in pulsed transmission signal.
@@ -98,7 +97,7 @@ class EH_RR: # sub
 		Args:
 		:param machine:
 		:param res_freq_sweep: 1D array for resonator frequency sweep
-		:param res_index:
+		:param qubit_index:
 		:param n_avg: repetition of expeirment
 		:param cd_time: cooldown time between subsequent experiments
 		:param readout_state: 'g' (default). If 'e'/'f', readout done for |e>. If anything else, return error.
@@ -111,8 +110,7 @@ class EH_RR: # sub
 			sig_amp
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
 		res_if_sweep = res_freq_sweep - res_lo
@@ -120,7 +118,7 @@ class EH_RR: # sub
 
 		if np.max(abs(res_if_sweep)) > 400E6: # check if parameters are within hardware limit
 			print("res if range > 400MHz")
-			return machine, None, None
+			return machine, None
 
 		with program() as rr_freq_prog:
 			[I,Q,n,I_st,Q_st,n_st] = declare_vars()
@@ -140,9 +138,9 @@ class EH_RR: # sub
 					else:
 						print("readout state does not exist")
 						return
-					update_frequency(machine.resonators[res_index].name, df)
-					readout_avg_macro(machine.resonators[res_index].name,I,Q)
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					update_frequency(machine.resonators[qubit_index].name, df)
+					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
 					save(n, n_st)
@@ -161,7 +159,7 @@ class EH_RR: # sub
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, rr_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			qm = qmm.open_qm(config)
 			job = qm.execute(rr_freq_prog)
@@ -177,8 +175,8 @@ class EH_RR: # sub
 			while results.is_processing():
 				# Fetch results
 				I, Q, iteration = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				# progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
@@ -192,30 +190,30 @@ class EH_RR: # sub
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
 			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 			sig_amp = np.sqrt(I**2 + Q**2)
 			sig_phase = np.angle(I + 1j * Q)
 
 			# save data
 			exp_name = 'RR_freq'
-			qubit_name = 'Q' + str(res_index+1)
+			qubit_name = 'Q' + str(qubit_index+1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
 			savemat(os.path.join(tPath, file_name), {"RR_freq": res_freq_sweep, "sig_amp": sig_amp, "sig_phase": sig_phase, "readout_state": readout_state})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			return machine, res_freq_sweep, sig_amp
+			return machine, expt_dataset
 
-	def rr_switch_delay(self, machine, rr_switch_delay_sweep, res_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rr_switch_delay(self, machine, rr_switch_delay_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		1D experiment to calibrate switch delay for the resonator.
 
 		Args:
 			machine: 
 			rr_switch_delay_sweep (): in ns
-			res_index ():
+			qubit_index ():
 			n_avg ():
 			cd_time ():
 			simulate_flag ():
@@ -227,23 +225,22 @@ class EH_RR: # sub
 			rr_switch_delay_sweep
 			sig_amp
 		"""
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
-		res_if = machine.resonators[res_index].f_readout - res_lo
+		res_if = machine.resonators[qubit_index].f_readout - res_lo
 
 		if abs(res_if) > 400E6: # check if parameters are within hardware limit
 			print("res if > 400MHz")
-			return machine, None, None
+			return machine, None
 
 		with program() as rr_switch_delay_prog:
 			[I,Q,n,I_st,Q_st,n_st] = declare_vars()
 
 			with for_(n, 0, n < n_avg, n+1):
-				update_frequency(machine.resonators[res_index].name, res_if)
-				readout_avg_macro(machine.resonators[res_index].name,I,Q)
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				update_frequency(machine.resonators[qubit_index].name, res_if)
+				readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(I, I_st)
 				save(Q, Q_st)
 			with stream_processing():
@@ -260,7 +257,7 @@ class EH_RR: # sub
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, rr_switch_delay_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			start_time = time.time()
 			I_tot = []
@@ -270,7 +267,7 @@ class EH_RR: # sub
 				plt.rcParams['figure.figsize'] = [8, 4]
 
 			for delay_index, delay_value in enumerate(rr_switch_delay_sweep):
-				#machine.resonators[res_index].digital_marker.delay = int(delay_value)
+				#machine.resonators[qubit_index].digital_marker.delay = int(delay_value)
 				machine = self.set_digital_delay(machine, "resonators", int(delay_value))
 				
 				config = build_config(machine)
@@ -286,8 +283,8 @@ class EH_RR: # sub
 					time.sleep(0.1)
 
 				I, Q = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				I_tot.append(I)
 				Q_tot.append(Q)
 
@@ -309,23 +306,23 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'res_switch_delay'
-			qubit_name = 'Q' + str(res_index+1)
+			qubit_name = 'Q' + str(qubit_index+1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
 			savemat(os.path.join(tPath, file_name), {"res_delay": rr_switch_delay_sweep, "sig_amp": sig_amp, "sig_phase": sig_phase})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			return machine, rr_switch_delay_sweep, sig_amp
+			return machine, expt_dataset
 
-	def rr_switch_buffer(self, machine, rr_switch_buffer_sweep, res_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rr_switch_buffer(self, machine, rr_switch_buffer_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		1D experiment to calibrate switch delay for the resonator.
 
 		Args:
 			machine: 
 			rr_switch_buffer_sweep (): in ns, this will be added to both sides of the switch (x2), to account for the rise and fall
-			res_index ():
+			qubit_index ():
 			n_avg ():
 			cd_time ():
 			simulate_flag ():
@@ -337,23 +334,22 @@ class EH_RR: # sub
 			rr_switch_buffer_sweep:
 			sig_amp:
 		"""
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
-		res_if = machine.resonators[res_index].f_readout - res_lo
+		res_if = machine.resonators[qubit_index].f_readout - res_lo
 
 		if abs(res_if) > 400E6: # check if parameters are within hardware limit
 			print("res if > 400MHz")
-			return machine, None, None
+			return machine, None
 
 		with program() as rr_switch_buffer_prog:
 			[I,Q,n,I_st,Q_st,n_st] = declare_vars()
 
 			with for_(n, 0, n < n_avg, n+1):
-				update_frequency(machine.resonators[res_index].name, res_if)
-				readout_avg_macro(machine.resonators[res_index].name,I,Q)
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				update_frequency(machine.resonators[qubit_index].name, res_if)
+				readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(I, I_st)
 				save(Q, Q_st)
 			with stream_processing():
@@ -370,7 +366,7 @@ class EH_RR: # sub
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, rr_switch_buffer_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
-			return machine, None, None
+			return machine, None
 		else:
 			start_time = time.time()
 			I_tot = []
@@ -394,8 +390,8 @@ class EH_RR: # sub
 					time.sleep(0.1)
 
 				I, Q = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[res_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[res_index].readout_pulse_length)
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				I_tot.append(I)
 				Q_tot.append(Q)
 
@@ -417,19 +413,18 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'res_switch_buffer'
-			qubit_name = 'Q' + str(res_index+1)
+			qubit_name = 'Q' + str(qubit_index+1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
 			savemat(os.path.join(tPath, file_name), {"res_buffer": rr_switch_buffer_sweep, "sig_amp": sig_amp, "sig_phase": sig_phase})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			return machine, rr_switch_buffer_sweep, sig_amp
+			return machine, expt_dataset
 
-	def single_shot_IQ_blob(self, machine, res_freq, qubit_index, res_index, n_avg = 1E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def single_shot_IQ_blob(self, machine, res_freq, qubit_index, n_avg = 1E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
 		res_if = np.round(res_freq - res_lo)
@@ -452,22 +447,22 @@ class EH_RR: # sub
 			with for_(n, 0, n < n_avg, n+1):
 				measure(
 					"readout",
-					machine.resonators[res_index].name,
+					machine.resonators[qubit_index].name,
 					None,
 					dual_demod.full("rotated_cos", "out1", "rotated_sin", "out2", I_g),
 					dual_demod.full("rotated_minus_sin", "out1", "rotated_cos", "out2", Q_g),
 				)
 				save(I_g, I_g_st)
 				save(Q_g, Q_g_st)
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 
 				align()  # global align
 
 				play("pi", machine.qubits[qubit_index].name)
-				align(machine.qubits[qubit_index].name, machine.resonators[res_index].name)
+				align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
 				measure(
 					"readout",
-					machine.resonators[res_index].name,
+					machine.resonators[qubit_index].name,
 					None,
 					dual_demod.full("rotated_cos", "out1", "rotated_sin", "out2", I_e),
 					dual_demod.full("rotated_minus_sin", "out1", "rotated_cos", "out2", Q_e),
@@ -475,7 +470,7 @@ class EH_RR: # sub
 
 				save(I_e, I_e_st)
 				save(Q_e, Q_e_st)
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 
 			with stream_processing():
 				I_g_st.save_all("I_g")
@@ -525,7 +520,7 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'single_shot_IQ'
-			qubit_name = 'Q' + str(res_index+1)
+			qubit_name = 'Q' + str(qubit_index+1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
@@ -534,7 +529,7 @@ class EH_RR: # sub
 
 			return machine, Ig, Qg, Ie, Qe
 
-	def single_shot_freq_optimization(self, machine, res_freq_sweep, qubit_index, res_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def single_shot_freq_optimization(self, machine, res_freq_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 		        READOUT OPTIMISATION: FREQUENCY
 		This sequence involves measuring the state of the resonator in two scenarios: first, after thermalization
@@ -547,7 +542,6 @@ class EH_RR: # sub
 		:param machine:
 		:param res_freq_sweep:
 		:param qubit_index:
-		:param res_index:
 		:param n_avg:
 		:param cd_time:
 		:param simulate_flag:
@@ -559,8 +553,7 @@ class EH_RR: # sub
 			res_freq_opt
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
 		res_if_sweep = res_freq_sweep - res_lo
@@ -586,17 +579,17 @@ class EH_RR: # sub
 			with for_(n, 0, n < n_avg, n + 1):
 				with for_(*from_array(df, res_if_sweep)):
 					# Update the frequency of the digital oscillator linked to the resonator element
-					update_frequency(machine.resonators[res_index].name, df)
+					update_frequency(machine.resonators[qubit_index].name, df)
 					# Measure the state of the resonator
 					measure(
 						"readout",
-						machine.resonators[res_index].name,
+						machine.resonators[qubit_index].name,
 						None,
 						dual_demod.full("rotated_cos", "out1", "rotated_sin", "out2", I_g),
 						dual_demod.full("rotated_minus_sin", "out1", "rotated_cos", "out2", Q_g),
 					)
 					# Wait for the qubit to decay to the ground state
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					# Save the 'I_e' & 'Q_e' quadratures to their respective streams
 					save(I_g, Ig_st)
 					save(Q_g, Qg_st)
@@ -605,17 +598,17 @@ class EH_RR: # sub
 					# Play the x180 gate to put the qubit in the excited state
 					play("pi", machine.qubits[qubit_index].name)
 					# Align the two elements to measure after playing the qubit pulse.
-					align(machine.qubits[qubit_index].name, machine.resonators[res_index].name)
+					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
 					# Measure the state of the resonator
 					measure(
 						"readout",
-						machine.resonators[res_index].name,
+						machine.resonators[qubit_index].name,
 						None,
 						dual_demod.full("rotated_cos", "out1", "rotated_sin", "out2", I_e),
 						dual_demod.full("rotated_minus_sin", "out1", "rotated_cos", "out2", Q_e),
 					)
 					# Wait for the qubit to decay to the ground state
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					# Save the 'I_e' & 'Q_e' quadratures to their respective streams
 					save(I_e, Ie_st)
 					save(Q_e, Qe_st)
@@ -699,7 +692,7 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'single_shot_freq_optimization'
-			qubit_name = 'Q' + str(res_index + 1)
+			qubit_name = 'Q' + str(qubit_index + 1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
@@ -709,7 +702,7 @@ class EH_RR: # sub
 
 			return machine, SNR, res_freq_sweep[np.argmax(SNR)]
 
-	def single_shot_amp_optimization(self, machine, res_amp_rel_sweep, qubit_index, res_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def single_shot_amp_optimization(self, machine, res_amp_rel_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 				READOUT OPTIMISATION: AMPLITUDE
 		The sequence consists in measuring the state of the resonator after thermalization (qubit in |g>) and after
@@ -720,7 +713,6 @@ class EH_RR: # sub
 		:param machine:
 		:param res_amp_sweep:
 		:param qubit_index:
-		:param res_index:
 		:param n_avg:
 		:param cd_time:
 		:param simulate_flag:
@@ -733,14 +725,13 @@ class EH_RR: # sub
 			res_amp_opt
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		if max(abs(res_amp_rel_sweep)) > 2.0:
 			print("some rel amps > 2.0, removed from experiment run")
 			res_amp_rel_sweep = res_amp_rel_sweep[abs(res_amp_rel_sweep) < 2.0]
 
-		readout_amp = machine.resonators[res_index].readout_pulse_amp
+		readout_amp = machine.resonators[qubit_index].readout_pulse_amp
 		res_amp_abs_sweep = readout_amp * res_amp_rel_sweep
 		if max(abs(res_amp_abs_sweep)) > 0.5:
 			print("some abs amps > 0.5, removed from experiment run")
@@ -766,13 +757,13 @@ class EH_RR: # sub
 					# Measure the state of the resonator
 					measure(
 						"readout" * amp(a),
-						machine.resonators[res_index].name,
+						machine.resonators[qubit_index].name,
 						None,
 						dual_demod.full("rotated_cos", "out1", "rotated_sin", "out2", I_g),
 						dual_demod.full("rotated_minus_sin", "out1", "rotated_cos", "out2", Q_g),
 					)
 					# Wait for the qubit to decay to the ground state
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					# Save the 'I_e' & 'Q_e' quadratures to their respective streams
 					save(I_g, Ig_st)
 					save(Q_g, Qg_st)
@@ -781,17 +772,17 @@ class EH_RR: # sub
 					# Play the x180 gate to put the qubit in the excited state
 					play("pi", machine.qubits[qubit_index].name)
 					# Align the two elements to measure after playing the qubit pulse.
-					align(machine.qubits[qubit_index].name, machine.resonators[res_index].name)
+					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
 					# Measure the state of the resonator
 					measure(
 						"readout" * amp(a),
-						machine.resonators[res_index].name,
+						machine.resonators[qubit_index].name,
 						None,
 						dual_demod.full("rotated_cos", "out1", "rotated_sin", "out2", I_e),
 						dual_demod.full("rotated_minus_sin", "out1", "rotated_cos", "out2", Q_e),
 					)
 					# Wait for the qubit to decay to the ground state
-					wait(cd_time * u.ns, machine.resonators[res_index].name)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					# Save the 'I_e' & 'Q_e' quadratures to their respective streams
 					save(I_e, Ie_st)
 					save(Q_e, Qe_st)
@@ -857,7 +848,7 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'single_shot_amp_optimization'
-			qubit_name = 'Q' + str(res_index + 1)
+			qubit_name = 'Q' + str(qubit_index + 1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
@@ -867,7 +858,7 @@ class EH_RR: # sub
 
 			return machine, res_amp_rel_sweep * readout_amp, fidelity_vec, res_amp_opt
 
-	def single_shot_duration_optimization(self, machine, readout_len, ringdown_len, division_length , qubit_index, res_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def single_shot_duration_optimization(self, machine, readout_len, ringdown_len, division_length , qubit_index, n_avg = 10E3, cd_time = 20E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
 		"""
 				READOUT OPTIMISATION: DURATION
 		This sequence involves measuring the state of the resonator in two scenarios: first, after thermalization
@@ -883,8 +874,6 @@ class EH_RR: # sub
 		:param ringdown_len: integration time after readout pulse to observe the ringdown of the resonator, could be 0. In ns
 		:param division_length : Size of each demodulation slice in clock cycles
 		:param qubit_index:
-		:param res_index:
-		:param flux_index:
 		:param n_avg:
 		:param cd_time:
 		:param simulate_flag:
@@ -897,20 +886,19 @@ class EH_RR: # sub
 			opt_readout_length
 		"""
 
-		tPath = self.update_tPath()
-		f_str_datetime = self.update_str_datetime()
+		
 
 		def update_readout_length(new_readout_length, ringdown_length):
-			config["pulses"][f"readout_pulse_q{res_index}" ]["length"] = new_readout_length
-			config["integration_weights"][f"cosine_weights{res_index}"] = {
+			config["pulses"][f"readout_pulse_q{qubit_index}" ]["length"] = new_readout_length
+			config["integration_weights"][f"cosine_weights{qubit_index}"] = {
 				"cosine": [(1.0, new_readout_length + ringdown_length)],
 				"sine": [(0.0, new_readout_length + ringdown_length)],
 			}
-			config["integration_weights"][f"sine_weights{res_index}"] = {
+			config["integration_weights"][f"sine_weights{qubit_index}"] = {
 				"cosine": [(0.0, new_readout_length + ringdown_length)],
 				"sine": [(1.0, new_readout_length + ringdown_length)],
 			}
-			config["integration_weights"][f"minus_sine_weights{res_index}"] = {
+			config["integration_weights"][f"minus_sine_weights{qubit_index}"] = {
 				"cosine": [(0.0, new_readout_length + ringdown_length)],
 				"sine": [(-1.0, new_readout_length + ringdown_length)],
 			}
@@ -951,7 +939,7 @@ class EH_RR: # sub
 				# With demod.accumulated, the results are QUA vectors with 1 point for each accumulated chunk
 				measure(
 					"readout",
-					machine.resonators[res_index].name,
+					machine.resonators[qubit_index].name,
 					None,
 					demod.accumulated("cos", II, division_length, "out1"),
 					demod.accumulated("sin", IQ, division_length, "out2"),
@@ -965,7 +953,7 @@ class EH_RR: # sub
 					assign(Q[ind], QQ[ind] + QI[ind])
 					save(Q[ind], Qg_st)
 				# Wait for the qubit to decay to the ground state
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 
 				align()
 
@@ -975,7 +963,7 @@ class EH_RR: # sub
 				align()
 				measure(
 					"readout",
-					machine.resonators[res_index].name,
+					machine.resonators[qubit_index].name,
 					None,
 					demod.accumulated("cos", II, division_length, "out1"),
 					demod.accumulated("sin", IQ, division_length, "out2"),
@@ -990,7 +978,7 @@ class EH_RR: # sub
 					save(Q[ind], Qe_st)
 
 				# Wait for the qubit to decay to the ground state
-				wait(cd_time * u.ns, machine.resonators[res_index].name)
+				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				# Save the averaging iteration to get the progress bar
 				save(n, n_st)
 
@@ -1089,7 +1077,7 @@ class EH_RR: # sub
 
 			# save data
 			exp_name = 'single_shot_duration_optimization'
-			qubit_name = 'Q' + str(res_index + 1)
+			qubit_name = 'Q' + str(qubit_index + 1)
 			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
 			file_name = f_str + '.mat'
 			json_name = f_str + '_state.json'
