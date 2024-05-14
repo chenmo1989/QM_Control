@@ -35,12 +35,18 @@ from set_octave import OctaveUnit, octave_declaration
 #######################
 u = unit(coerce_to_integer=True)
 
+##############
+# non-QUA function #
+##############
+def datetime_format_string():
+    return "%Y-%m-%d %H:%M:%S"
+
 ######################
 # Network parameters #
 ######################
-qop_ip = "192.168.88.254"  # Write the QM router IP address
+qop_ip = "192.168.88.179"  # octave IP address
 cluster_name = "DF5"  # Write your cluster_name if version >= QOP220
-qop_port = None  # Write the QOP port if version < QOP220
+octave_port = 80  # octave port if version < QOP220
 
 # Path to save data
 #save_dir = Path().absolute() / "QM" / "INSTALLATION" / "data"
@@ -52,7 +58,7 @@ save_dir = ""
 
 # The Octave port is 11xxx, where xxx are the last three digits of the Octave internal IP that can be accessed from
 # the OPX admin panel if you QOP version is >= QOP220. Otherwise, it is 50 for Octave1, then 51, 52 and so on.
-octave_1 = OctaveUnit("octave1", qop_ip, port=80, con="con1")
+octave_1 = OctaveUnit("octave1", qop_ip, port=octave_port, con="con1")
 # octave_2 = OctaveUnit("octave2", qop_ip, port=11051, con="con1")
 
 # Add the octaves
@@ -164,16 +170,16 @@ def build_config(quam: QuAM):
         "controllers": {
             "con1": {
                 "analog_outputs": {
-                    1: {"offset": 0.0, "delay": quam.octaves[0].RO_delay}, # I readout
-                    2: {"offset": 0.0, "delay": quam.octaves[0].RO_delay}, # Q readout
+                    1: {"offset": 0.0, "delay": quam.global_parameters.RO_delay[0]}, # I readout
+                    2: {"offset": 0.0, "delay": quam.global_parameters.RO_delay[0]}, # Q readout
                     3: {"offset": 0.0}, # I qubit XY
                     4: {"offset": 0.0}, # Q qubit XY
                     5: {"offset": 0.0}, # I auxiliary XY
                     6: {"offset": 0.0}, # Q auxiliary XY
-                    7: {"offset": 0.0, "delay": quam.flux_lines[0].hardware_parameters.Z_delay}, # qubit0 Z
-                    8: {"offset": 0.0, "delay": quam.flux_lines[1].hardware_parameters.Z_delay}, # qubit1 Z
-                    9: {"offset": 0.0, "delay": quam.flux_lines[2].hardware_parameters.Z_delay}, # qubit2 Z
-                    10: {"offset": 0.0, "delay": quam.flux_lines[3].hardware_parameters.Z_delay}, # qubit3 Z
+                    7: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay}, 
+                    8: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay}, 
+                    9: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay}, 
+                    10: {"offset": 0.0, "delay": quam.flux_lines[0].Z_delay},
                 },
                 "digital_outputs": {
                     1: {},
@@ -189,12 +195,12 @@ def build_config(quam: QuAM):
                 },
                 "analog_inputs": {
                     1: {
-                        "offset": quam.octaves[0].downconversion_offset_I,
-                        "gain_db": quam.octaves[0].downconversion_gain,
+                        "offset": quam.global_parameters.downconversion_offset_I[0],
+                        "gain_db": quam.global_parameters.downconversion_gain[0],
                     }, # I from down-conversion 
                     2: {
-                        "offset": quam.octaves[0].downconversion_offset_Q,
-                        "gain_db": quam.octaves[0].downconversion_gain,
+                        "offset": quam.global_parameters.downconversion_offset_Q[0],
+                        "gain_db": quam.global_parameters.downconversion_gain[0],
                     }, # Q from down-conversion
                 },
             },
@@ -204,33 +210,12 @@ def build_config(quam: QuAM):
                 quam.resonators[i].name: {
                     "RF_inputs": {"port": ("octave1", 1)},
                     "RF_outputs": {"port": ("octave1", 1)},
-                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.quam.octaves[0].LO_sources[0].LO_frequency), 
+                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octaves[0].LO_sources[0].LO_frequency),
                     "operations": {
                         "cw": "const_pulse",
                         "readout": f"readout_pulse_q{i}",
                         },
-                    "time_of_flight": quam.resonators[i].hardware_parameters.time_of_flight,
-                    "smearing": 0,
-                    "digitalInputs": {
-                        "output_switch": {
-                            "port": ("con1", 1),
-                            "delay": quam.octaves[0].LO_sources[0].digital_marker.delay,
-                            "buffer": quam.octaves[0].LO_sources[0].digital_marker.buffer,
-                        },
-                    },
-                }
-                for i in range(len(quam.resonators))
-            },
-            **{
-                quam.resonators[i].name+"aux": {
-                    "RF_inputs": {"port": ("octave1", 1)},
-                    "RF_outputs": {"port": ("octave1", 1)},
-                    "intermediate_frequency":  (quam.resonators[i].f_readout - quam.octaves[0].LO_sources[0].LO_frequency), 
-                    "operations": {
-                        "cw": "const_pulse",
-                        "readout": f"readout_pulse_q{i}",
-                        },
-                    "time_of_flight": quam.resonators[i].hardware_parameters.time_of_flight,
+                    "time_of_flight": quam.resonators[i].time_of_flight,
                     "smearing": 0,
                     "digitalInputs": {
                         "output_switch": {
@@ -303,19 +288,11 @@ def build_config(quam: QuAM):
                         "gain": quam.octaves[0].LO_sources[1].gain,
                         "input_attenuators": quam.octaves[0].LO_sources[1].input_attenuators, # Can be "ON" / "OFF" (default). "ON" means that the I and Q signals have a 10 dB attenuation before entering the octave's internal mixer.
                     },
-                    3: {
-                        "LO_frequency": quam.octaves[0].LO_sources[2].LO_frequency,
-                        "LO_source": "internal",
-                        "output_mode": quam.octaves[0].LO_sources[2].output_mode,
-                        "gain": quam.octaves[0].LO_sources[2].gain,
-                        "input_attenuators": quam.octaves[0].LO_sources[2].input_attenuators, # Can be "ON" / "OFF" (default). "ON" means that the I and Q signals have a 10 dB attenuation before entering the octave's internal mixer.
-                    },
                 },
                 "RF_inputs": {
                     1: {
-                        "RF_source": "RF_in",
                         "LO_frequency": quam.octaves[0].LO_sources[0].LO_frequency,
-                        "LO_source": "internal",
+                        "LO_source": "internal", # internal is the default
                         "IF_mode_I": "direct",  # can be: "direct" / "mixer" / "envelope" / "off". direct is default
                         "IF_mode_Q": "direct",
                     },

@@ -6,17 +6,17 @@ All the macros below have been written and tested with the basic configuration. 
 
 from qm.qua import *
 from scipy import optimize
-from qutip import *
+#from qutip import *
 import matplotlib.pyplot as plt
 import numpy as np
 from qualang_tools.loops import from_array
 from configuration import u
 import time
 
+
 ##############
 # QUA macros #
 ##############
-
 def wait_until_job_is_paused(current_job):
     """
     Waits until the OPX FPGA reaches the pause statement.

@@ -4,29 +4,22 @@ ExperimentHandle.exp2D
 written by Mo Chen in Oct. 2023
 """
 from qm.qua import *
-from qm.QuantumMachinesManager import QuantumMachinesManager
-from qm import SimulationConfig, LoopbackInterface, generate_qua_script
+from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
 from qm.octave import *
-from qm.octave.octave_manager import ClockMode
+#from qm.octave.octave_manager import ClockMode
 from configuration import *
 from scipy import signal
 from qm import SimulationConfig
 from qualang_tools.bakery import baking
-from qualang_tools.units import unit
-from qm import generate_qua_script
 from qm.octave import QmOctaveConfig
-from set_octave import ElementsSettings, octave_settings
+#from set_octave import ElementsSettings, octave_settings
 from quam import QuAM
-from scipy.io import savemat
-from scipy.io import loadmat
+from scipy.io import savemat, loadmat
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
-from qutip import *
+#from qutip import *
 from typing import Union
 from macros import *
-import datetime
-import os
-import time
 import warnings
 import json
 import matplotlib.pyplot as plt
@@ -48,17 +41,14 @@ class EH_exp2D:
 	Attributes:
 
 	Methods (useful ones):
-		update_tPath: reference to Experiment.update_tPath
-		update_str_datetime: reference to Experiment.update_str_datetime
 		RR: a class for running readout resonator related experiments
 	"""
-	def __init__(self,ref_to_update_tPath, ref_to_update_str_datetime, ref_to_set_octave, ref_to_set_Labber):
-		self.update_tPath = ref_to_update_tPath
-		self.update_str_datetime = ref_to_update_str_datetime
-		self.set_Labber = ref_to_set_Labber
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
 		self.set_octave = ref_to_set_octave
-		self.RR = EH_RR(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)
+		self.set_Labber = ref_to_set_Labber
+		self.datalogs = ref_to_datalogs
 		self.exp1D = EH_1D()
-		self.Rabi = EH_Rabi(ref_to_update_tPath,ref_to_update_str_datetime,self.exp1D,ref_to_set_octave)
-		self.SWAP = EH_SWAP(ref_to_update_tPath,ref_to_update_str_datetime,ref_to_set_octave)
+		self.RR = EH_RR(self.exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.Rabi = EH_Rabi(self.exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
+		self.SWAP = EH_SWAP(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
 		#self.CPMG = EH_CPMG(ref_to_update_tPath,ref_to_update_str_datetime)

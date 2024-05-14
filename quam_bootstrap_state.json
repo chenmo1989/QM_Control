@@ -1,14 +1,14 @@
 {
   "qubits": [{
       "name": "q0",
-      "f_01": 6567349000.0,
-      "f_tls": [6567349000.0],
+      "f_01": 6379991612.0,
+      "f_tls": [6379991612.0],
       "anharmonicity": 180000000.0,
       "drag_coefficient": 0.0,
       "ac_stark_detuning": 0.0,
       "x180_length": 40,
       "x180_amp": 0.1,
-      "pi_length": 40,
+      "pi_length": 100,
       "pi_amp": 0.025,
       "pi_length_ef": 80,
       "pi_amp_ef": 0.015,
@@ -31,9 +31,9 @@
     }],
   "flux_lines": [{
       "name": "flux0",
-      "max_frequency_point": 0.0,
       "flux_pulse_amp": 0.25,
       "flux_pulse_length": 100,
+      "Z_delay": 19,
       "iswap": {
         "length": [16],
         "level": [0.2]
@@ -45,10 +45,6 @@
           "iir_taps": [],
           "fir_taps": []
         }
-      },
-      "hardware_parameters": {
-        "Z_delay": 19,
-        "dc_voltage": 0.0
       }
     }],
   "resonators": [{
@@ -61,35 +57,34 @@
       "rotation_angle": 0.0,
       "ge_threshold": 0.0,
       "tuning_curve": [0.0,0.0,0.0,0.0,0.0,0.0],
-      "wiring": {
-        "controller": "con1",
-        "I": 1,
-        "Q": 2,
-        "digital_marker": 1
-      },
-      "hardware_parameters": {
-        "time_of_flight": 304,
-        "downconversion_offset_I": 0.0,
-        "downconversion_offset_Q": 0.0,
-        "downconversion_gain": 0,
-        "RO_delay": 0,
-        "RO_attenuation": [32.0,10.0],
-        "TWPA": [6324000000.0,-10.0]
-      }
-    }],
-  "octaves": [{
-      "name": "octave1",
       "time_of_flight": 304,
       "downconversion_offset_I": 0.0,
       "downconversion_offset_Q": 0.0,
       "downconversion_gain": 0,
       "RO_delay": 0,
+      "RO_attenuation": [32.0,10.0],
+      "TWPA": [6324000000.0,-10.0],
+      "wiring": {
+        "controller": "con1",
+        "I": 1,
+        "Q": 2,
+        "digital_marker": 1
+      }
+    }],
+  "dc_flux": [{
+      "name": "dc0",
+      "max_frequency_point": 0.0,
+      "dc_voltage": 0.0
+    }],
+  "octaves": [{
+      "name": "octave1",
       "LO_sources": [{
           "name": "LO1",
           "LO_frequency": 5000000000.0,
           "LO_source": "internal",
-          "output_mode": "triggered",
+          "output_mode": "always_on",
           "gain": 0,
+          "input_attenuators": "OFF",
           "digital_marker": {
             "delay": 57,
             "buffer": 18
@@ -98,8 +93,9 @@
           "name": "LO2",
           "LO_frequency": 5000000000.0,
           "LO_source": "internal",
-          "output_mode": "triggered",
+          "output_mode": "always_on",
           "gain": 0,
+          "input_attenuators": "OFF",
           "digital_marker": {
             "delay": 57,
             "buffer": 18
@@ -108,8 +104,9 @@
           "name": "LO3",
           "LO_frequency": 5000000000.0,
           "LO_source": "internal",
-          "output_mode": "triggered",
+          "output_mode": "always_on",
           "gain": 0,
+          "input_attenuators": "OFF",
           "digital_marker": {
             "delay": 57,
             "buffer": 18
@@ -117,7 +114,7 @@
         }]
     }],
   "network": {
-    "qop_ip": "192.168.88.254",
+    "qop_ip": "192.168.88.178",
     "octave1_ip": "192.168.88.179",
     "qop_port": 80,
     "octave_port": 80,
@@ -125,7 +122,12 @@
     "save_dir": ""
   },
   "global_parameters": {
+    "name": "quam_state.json",
     "saturation_amp": 0.1,
-    "saturation_len": 14000
+    "saturation_len": 14000,
+    "downconversion_offset_I": [0.0],
+    "downconversion_offset_Q": [0.0],
+    "downconversion_gain": [0],
+    "RO_delay": [0]
   }
 }
