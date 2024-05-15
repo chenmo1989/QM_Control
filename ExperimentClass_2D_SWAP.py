@@ -1,5 +1,5 @@
 import datetime
-from macros import datetime_format_string
+from configuration import datetime_format_string
 
 class EH_SWAP:
 	"""
@@ -14,7 +14,7 @@ class EH_SWAP:
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
 
-	def swap_coarse(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg, cd_time, simulate_flag=False, simulation_len=1000, plot_flag=True):
+	def swap_coarse(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg, cd_time, to_simulate=False, simulation_len=1000, final_plot=True):
 		"""
 		runs 2D SWAP spectroscopy experiment
 		Note time resolution is 4ns!
@@ -26,9 +26,9 @@ class EH_SWAP:
 			qubit_index ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 			
 		Returns:
 			machine
@@ -75,9 +75,9 @@ class EH_SWAP:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, iswap, simulation_config)
 			job.get_simulated_samples().con1.plot()
@@ -88,7 +88,7 @@ class EH_SWAP:
 			job = qm.execute(iswap)
 			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
 
-			if plot_flag:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8,4]
 				interrupt_on_close(fig, job)
@@ -102,7 +102,7 @@ class EH_SWAP:
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 				time.sleep(0.1)
 
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.pcolor(ff_sweep_abs, tau_sweep_abs, np.sqrt(I**2 + Q**2), cmap="seismic")
 					plt.colorbar()
@@ -153,14 +153,14 @@ class EH_SWAP:
 			# save data
 			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
 
-			if plot_flag:
+			if final_plot:
 				plt.cla()
 				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
 				sig_amp.plot()
 
 		return machine, expt_dataset
 
-	def swap_fine(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg, cd_time, simulate_flag=False, simulation_len=1000, plot_flag=True):
+	def swap_fine(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg, cd_time, to_simulate=False, simulation_len=1000, final_plot=True):
 		"""
 		runs 2D SWAP spectroscopy
 		allows 1ns time resolution, and start at t < 16ns
@@ -171,9 +171,9 @@ class EH_SWAP:
 			qubit_index ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 			
 		Returns:
 			machine
@@ -255,19 +255,20 @@ class EH_SWAP:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, iswap, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(iswap)
 			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
 
-			if plot_flag:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8,4]
 				interrupt_on_close(fig, job)
@@ -294,7 +295,7 @@ class EH_SWAP:
 					 "tau_sweep": tau_sweep_abs})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			if plot_flag:
+			if final_plot:
 				plt.cla()
 				plt.pcolor(ff_sweep_abs, tau_sweep_abs, sig_amp.T, cmap="seismic")
 				plt.colorbar()

@@ -4,7 +4,7 @@ class EH_SWAP:
 	Methods:
 		update_tPath
 		update_str_datetime
-		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg, cd_time, ff_amp = 1.0, simulate_flag = False, simulation_len = 1000)
+		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg, cd_time, ff_amp = 1.0, to_simulate = False, simulation_len = 1000)
 	"""
 
 	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
@@ -12,7 +12,8 @@ class EH_SWAP:
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
 
-	def rabi_SWAP(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+
+	def rabi_SWAP(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
 		"""
 		1D experiment: qubit rabi (length sweep) - SWAP - measure
 		qubit rabi duration in clock cycle
@@ -25,9 +26,9 @@ class EH_SWAP:
 			pi_amp_rel ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 
 		Returns:
 			machine
@@ -86,20 +87,21 @@ class EH_SWAP:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -113,13 +115,13 @@ class EH_SWAP:
 				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.title("Time Rabi")
 					plt.plot(rabi_duration_sweep * 4, sig_amp, "b.")
 					plt.xlabel("tau [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
+					plt.pause(0.02)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
@@ -141,7 +143,8 @@ class EH_SWAP:
 
 			return machine, expt_dataset
 
-	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, TLS_index, n_avg, cd_time, simulate_flag=False, simulation_len=1000, plot_flag=True):
+
+	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, TLS_index, n_avg, cd_time, to_simulate=False, simulation_len=1000, final_plot=True):
 		"""
 		1D SWAP spectroscopy. qubit pi - SWAP (sweep Z duration) - measure
 		tau_sweep in ns, only takes multiples of 4ns
@@ -153,9 +156,9 @@ class EH_SWAP:
 			TLS_index ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 
 		Returns:
 			machine
@@ -200,19 +203,20 @@ class EH_SWAP:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, iswap, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(iswap)
 			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
 
-			if plot_flag:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8,4]
 				interrupt_on_close(fig, job)
@@ -239,7 +243,7 @@ class EH_SWAP:
 					 "tau_sweep": tau_sweep_abs})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			if plot_flag:
+			if final_plot:
 				plt.cla()
 				plt.plot(tau_sweep_abs, sig_amp)
 				plt.ylabel("Signal Amplitude (V)")
@@ -247,7 +251,8 @@ class EH_SWAP:
 
 		return machine, expt_dataset
 
-	def SWAP_rabi(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+
+	def SWAP_rabi(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
 		"""
 		1D experiment for debug: SWAP - qubit rabi (sweep duration) - measure
 
@@ -259,9 +264,9 @@ class EH_SWAP:
 			pi_amp_rel ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 			
 		Returns:
 			machine
@@ -321,20 +326,21 @@ class EH_SWAP:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -348,13 +354,13 @@ class EH_SWAP:
 				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.title("Time Rabi")
 					plt.plot(rabi_duration_sweep * 4, sig_amp, "b.")
 					plt.xlabel("tau [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
+					plt.pause(0.02)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
@@ -376,7 +382,8 @@ class EH_SWAP:
 
 			return machine, expt_dataset
 
-	def rabi_SWAP2(self, machine rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+
+	def rabi_SWAP2(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
 		"""
 		1D experiment: qubit rabi (sweep duration) - SWAP - SWAP, to see if the state comes back
 
@@ -388,9 +395,9 @@ class EH_SWAP:
 			pi_amp_rel ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 			
 		Returns:
 			machine
@@ -453,20 +460,21 @@ class EH_SWAP:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -480,13 +488,13 @@ class EH_SWAP:
 				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.title("Time Rabi")
 					plt.plot(rabi_duration_sweep * 4, sig_amp, "b.")
 					plt.xlabel("tau [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
+					plt.pause(0.02)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()

@@ -4,7 +4,7 @@ class EH_RR:
 	Methods:
 		update_tPath
 		update_str_datetime
-		rr_vs_dc_flux(self, res_freq_sweep, dc_flux_sweep, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, simulate_flag = False, simulation_len = 1000)
+		rr_vs_dc_flux(self, res_freq_sweep, dc_flux_sweep, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, to_simulate = False, simulation_len = 1000)
 	"""
 	def __init__(self, ref_to_local_exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
 		self.exp1D = ref_to_local_exp1D
@@ -12,7 +12,7 @@ class EH_RR:
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
 
-	def rr_vs_dc_flux(self, machine, res_freq_sweep, dc_flux_sweep, qubit_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def rr_vs_dc_flux(self, machine, res_freq_sweep, dc_flux_sweep, qubit_index, n_avg, cd_time, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
 		"""
 		resonator spectroscopy vs dc flux 2D experiment
 		this is supposed to be some of the first qubit characterization experiment. Purpose is to get an initial estimate
@@ -27,9 +27,9 @@ class EH_RR:
 		:param qubit_index:
 		:param n_avg: repetition of the experiments
 		:param cd_time: cooldown time between subsequent experiments
-		:param simulate_flag: True-run simulation; False (default)-run experiment.
+		:param to_simulate: True-run simulation; False (default)-run experiment.
 		:param simulation_len: Length of the sequence to simulate. In clock cycles (4ns).
-		:param plot_flag: True (default) plot the experiment. False, do not plot.
+		:param final_plot: True (default) plot the experiment. False, do not plot.
 		
 		Return:
 			machine
@@ -82,15 +82,16 @@ class EH_RR:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port='9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, resonator_spec_2D, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(resonator_spec_2D)
 			# Creates results handles to fetch the data
 			res_handles = job.result_handles
@@ -102,7 +103,7 @@ class EH_RR:
 			I_tot = []
 			Q_tot = []
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -138,7 +139,7 @@ class EH_RR:
 				sig_amp = np.abs(sigs)  # Amplitude
 				sig_phase = np.angle(sigs)  # Phase
 				# Plot results
-				if plot_flag == True:
+				if final_plot:
 					plt.suptitle("RR spectroscopy")
 					plt.title("Resonator spectroscopy")
 					plt.plot((res_freq_sweep) / u.MHz, sig_amp, ".")
@@ -167,7 +168,7 @@ class EH_RR:
 		client.close()
 		return machine, expt_dataset
 
-	def rr_pulse_optimize(self, machine, res_duration_sweep_abs, res_amp_sweep, qubit_index, n_avg=1E3, cd_time=20E3, simulate_flag=False, simulation_len=1000, plot_flag=True):
+	def rr_pulse_optimize(self, machine, res_duration_sweep_abs, res_amp_sweep, qubit_index, n_avg=1E3, cd_time=20E3, to_simulate=False, simulation_len=1000, final_plot=True):
 		"""
 		characterize QND during readout pulse, find the optimal readout amp and duration
 		pi pulse -- variable readout pulse -- readout
@@ -178,9 +179,9 @@ class EH_RR:
 			qubit_index ():
 			n_avg ():
 			cd_time ():
-			simulate_flag ():
+			to_simulate ():
 			simulation_len ():
-			plot_flag ():
+			final_plot ():
 			
 		Returns:
 			machine
@@ -224,19 +225,20 @@ class EH_RR:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port='9510', octave=octave_config, log_level="ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, rr_pulse_optimize, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(rr_pulse_optimize)
 			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
 
-			if plot_flag:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)
@@ -263,7 +265,7 @@ class EH_RR:
 					 "res_duration_sweep": res_duration_sweep_abs})
 			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
-			if plot_flag:
+			if final_plot:
 				plt.cla()
 				plt.pcolor(res_amp_sweep, res_duration_sweep_abs, sig_amp, cmap="seismic")
 				plt.colorbar()

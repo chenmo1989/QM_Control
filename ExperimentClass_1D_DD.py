@@ -4,7 +4,7 @@ class EH_DD:
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
 
-	def TLS_echo(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+	def TLS_echo(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
 		"""
 		TLS echo in 1D.
 		pi/2_y - tau - pi_x - tau - pi/2_y
@@ -17,9 +17,9 @@ class EH_DD:
 		:param n_avg:
 		:param cd_time_qubit:
 		:param cd_time_TLS:
-		:param simulate_flag:
+		:param to_simulate:
 		:param simulation_len:
-		:param plot_flag:
+		:param final_plot:
 		
 		:return:
 			machine
@@ -36,7 +36,7 @@ class EH_DD:
 			return machine, None
 
 		# important, need to update if for qua program
-		TLS_if = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].
+		TLS_if = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
 
 		# Update the hardware parameters to TLS of interest
 		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
@@ -103,20 +103,21 @@ class EH_DD:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, tls_echo, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_echo)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -130,13 +131,13 @@ class EH_DD:
 				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.title("TLS echo")
 					plt.plot(tau_sweep * 4, sig_amp, "b.")
 					plt.xlabel("tau (pulse spacing) [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
+					plt.pause(0.02)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
@@ -158,7 +159,8 @@ class EH_DD:
 
 			return machine, expt_dataset
 
-	def TLS_CPMG(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, simulate_flag = False, simulation_len = 1000, plot_flag = True):
+
+	def TLS_CPMG(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
 		"""
 		TLS CPMG8 in 1D.
 		pi/2_y - (tau - pi_x - 2tau - pi_x - tau)^4 - pi/2_y
@@ -172,9 +174,9 @@ class EH_DD:
 		:param n_avg:
 		:param cd_time_qubit:
 		:param cd_time_TLS:
-		:param simulate_flag:
+		:param to_simulate:
 		:param simulation_len:
-		:param plot_flag:
+		:param final_plot:
 		
 		:return:
 			machine
@@ -191,7 +193,7 @@ class EH_DD:
 			return machine, None
 
 		# important, need to update if for qua program
-		TLS_if = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].
+		TLS_if = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
 
 		# Update the hardware parameters to TLS of interest
 		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
@@ -261,20 +263,21 @@ class EH_DD:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, tls_echo, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_echo)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -288,13 +291,13 @@ class EH_DD:
 				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.title(f"TLS CPMG{N_CPMG}")
 					plt.plot(tau_sweep * 4, sig_amp, "b.")
 					plt.xlabel("tau (half pulse spacing) [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
+					plt.pause(0.02)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()

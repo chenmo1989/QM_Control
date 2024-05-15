@@ -17,14 +17,12 @@ from ExperimentClass_Labber import EH_Labber
 from ExperimentClass_Octave import EH_Octave
 from DataLoggingClass import DataLoggingHandle
 
-class EH_expsave:
-	def __init__(self):
-		pass
-
 class ExperimentHandle:
 	def __init__(self):
-		self.exp1D = EH_exp1D(self.set_octave,self.set_Labber,self.datalogs)
-		self.exp2D = EH_exp2D(self.set_octave,self.set_Labber,self.datalogs)
 		self.set_Labber = EH_Labber()
 		self.set_octave = EH_Octave()
 		self.datalogs = DataLoggingHandle()
+		self.exp1D = EH_exp1D(self.set_octave,self.set_Labber,self.datalogs)
+		self.exp2D = EH_exp2D(self.set_octave,self.set_Labber,self.datalogs)
+		
+

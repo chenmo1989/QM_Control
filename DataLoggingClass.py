@@ -13,13 +13,14 @@ import datetime
 import os
 import time
 import glob
-from macros import datetime_format_string
+from configuration import datetime_format_string
 
 import Labber
 
 class DataLoggingHandle:
 
 	def __init__(self):
+		pass
 
 	def save(self, expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence):
 		# save base attributes
@@ -36,7 +37,7 @@ class DataLoggingHandle:
 		# add description
 		expt_dataset = self.add_description(expt_dataset)
 		# add non-QM machine settings
-		expt_dataset.attrs['machine_params_non_QM'] = self.save_machine_params_non_QM()
+		#expt_dataset.attrs['machine_params_non_QM'] = self.save_machine_params_non_QM()
 
 		# generate path, filename, save directory
 		tPath = self.generate_save_path(timestamp_created)
@@ -51,10 +52,16 @@ class DataLoggingHandle:
 
 	def add_description(self, expt_dataset):
 		describ_text = ''
-		for qubit in expt_dataset.attrs['qubit']:
-			describ_text = describ_text + '-' + qubit
-		for tls in expt_dataset.attrs['TLS']:
-			describ_text = describ_text + '-' + tls
+		for qubit_index, qubit in enumerate(expt_dataset.attrs['qubit']):
+			if qubit_index >0:
+				describ_text = describ_text + '-' + qubit
+			else:
+				describ_text = describ_text + qubit
+		for tls_index, tls in enumerate(expt_dataset.attrs['TLS']):
+			if tls_index >0:
+				describ_text = describ_text + '-' + tls
+			else:
+				describ_text = describ_text + tls_index
 		expt_dataset.attrs['description'] = "{}_{}".format(describ_text, expt_dataset.attrs['name'])
 		return expt_dataset
 
@@ -62,21 +69,20 @@ class DataLoggingHandle:
 		year = timestamp_created.strftime("%Y")
 		month = timestamp_created.strftime("%m")
 		day = timestamp_created.strftime("%d")
-		tPath = os.path.join(r'Z:/QM_Data_DF5',year,month,'Data_'+month+day+'/')
+		tPath = os.path.join(r'Z:\QM_Data_DF5',year,month,'Data_'+month+day)
 		if not os.path.exists(tPath):
 			os.makedirs(tPath)
 		self.tPath = tPath
 		return tPath
 
 	def generate_filename(self, expt_prefix, timestamp_created, tPath):
-		num_file = len(glob.glob(tPath + expt_prefix+'*'))
-
 		date = '{}'.format(timestamp_created.strftime('%Y-%m-%d'))
+		tFilename = "{}_{}".format(date, expt_prefix)
 
-    	if num_file > 0:
-    		tFilename = "{}_{}".format(date, expt_prefix)
-    	else:
-    		tFilename = "{}_{}_{}".format(date, expt_prefix, num_file+1)
+		num_file = len(glob.glob(os.path.join(tPath,tFilename)+'*.nc'))
+
+		if num_file > 0:
+			tFilename = "{}_{}".format(tFilename, num_file+1)
 
 		return tFilename
 
@@ -105,9 +111,19 @@ class DataLoggingHandle:
 		for keys in expt_dataset.coords:
 			if 'Flux' in keys:
 				expt_dataset[keys].attrs['units'] = 'V'
+			elif 'Volt' in keys:
+				expt_dataset[keys].attrs['units'] = 'V'
+			elif 'Amplitude' in keys:
+				expt_dataset[keys].attrs['units'] = 'V'		
 			elif 'Time' in keys:
 				expt_dataset[keys].attrs['units'] = 'ns'
+			elif 'Duration' in keys:
+				expt_dataset[keys].attrs['units'] = 'ns'
+			elif 'Length' in keys:
+				expt_dataset[keys].attrs['units'] = 'ns'
 			elif 'Frequency' in keys:
+				expt_dataset[keys].attrs['units'] = 'Hz'
+			elif 'Detuning' in keys:
 				expt_dataset[keys].attrs['units'] = 'Hz'
 			elif 'Phase' in keys:
 				expt_dataset[keys].attrs['units'] = 'rad'

@@ -6,19 +6,12 @@ All the macros below have been written and tested with the basic configuration. 
 
 from qm.qua import *
 from scipy import optimize
-from qutip import *
+#from qutip import *
 import matplotlib.pyplot as plt
 import numpy as np
 from qualang_tools.loops import from_array
 from configuration import u
 import time
-
-
-##############
-# non-QUA macros #
-##############
-def datetime_format_string():
-    return "%Y-%m-%d %H:%M:%S"
 
 
 ##############

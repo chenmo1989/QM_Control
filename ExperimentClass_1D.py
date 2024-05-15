@@ -6,18 +6,17 @@ written by Mo Chen in Oct. 2023
 from qm.qua import *
 from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
 from qm.octave import *
-from qm.octave.octave_manager import ClockMode
+#from qm.octave.octave_manager import ClockMode
 from configuration import *
 from scipy import signal
 from qualang_tools.bakery import baking
-from qualang_tools.units import unit
 from qm.octave import QmOctaveConfig
 #from set_octave import ElementsSettings, octave_settings
 from quam import QuAM
 from scipy.io import savemat, loadmat
 from scipy.optimize import curve_fit, minimize
 from scipy.signal import savgol_filter
-from qutip import *
+#from qutip import *
 from typing import Union
 from macros import *
 import warnings

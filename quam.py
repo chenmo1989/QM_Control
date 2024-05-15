@@ -102,21 +102,13 @@ class Wiring2(QuamComponent):
 
 
 @quam_data
-class Hardware_parameters2(QuamComponent):
-    Z_delay: int
-    dc_voltage: float
-    
-
-
-@quam_data
 class Flux_line(QuamComponent):
     name: str
-    max_frequency_point: float
     flux_pulse_amp: float
     flux_pulse_length: int
+    Z_delay: int
     iswap: Iswap
     wiring: Wiring2
-    hardware_parameters: Hardware_parameters2
     
 
 
@@ -126,18 +118,6 @@ class Wiring3(QuamComponent):
     I: int
     Q: int
     digital_marker: int
-    
-
-
-@quam_data
-class Hardware_parameters3(QuamComponent):
-    time_of_flight: int
-    downconversion_offset_I: float
-    downconversion_offset_Q: float
-    downconversion_gain: int
-    RO_delay: int
-    RO_attenuation: List[Union[str, int, float, bool, list]]
-    TWPA: List[Union[str, int, float, bool, list]]
     
 
 
@@ -152,8 +132,22 @@ class Resonator(QuamComponent):
     rotation_angle: float
     ge_threshold: float
     tuning_curve: List[Union[str, int, float, bool, list]]
+    time_of_flight: int
+    downconversion_offset_I: float
+    downconversion_offset_Q: float
+    downconversion_gain: int
+    RO_delay: int
+    RO_attenuation: List[Union[str, int, float, bool, list]]
+    TWPA: List[Union[str, int, float, bool, list]]
     wiring: Wiring3
-    hardware_parameters: Hardware_parameters3
+    
+
+
+@quam_data
+class Dc_flux(QuamComponent):
+    name: str
+    max_frequency_point: float
+    dc_voltage: float
     
 
 
@@ -171,6 +165,7 @@ class LO_source(QuamComponent):
     LO_source: str
     output_mode: str
     gain: int
+    input_attenuators: str
     digital_marker: Digital_marker
     
 
@@ -178,19 +173,19 @@ class LO_source(QuamComponent):
 @quam_data
 class Octave(QuamComponent):
     name: str
-    time_of_flight: int
-    downconversion_offset_I: float
-    downconversion_offset_Q: float
-    downconversion_gain: int
-    RO_delay: int
     LO_sources: List[LO_source]
     
 
 
 @quam_data
 class Global_parameters(QuamComponent):
+    name: str
     saturation_amp: float
     saturation_len: int
+    downconversion_offset_I: List[Union[str, int, float, bool, list]]
+    downconversion_offset_Q: List[Union[str, int, float, bool, list]]
+    downconversion_gain: List[Union[str, int, float, bool, list]]
+    RO_delay: List[Union[str, int, float, bool, list]]
     
 
 
@@ -199,6 +194,7 @@ class QuAM(QuamComponent):
     qubits: List[Qubit]
     flux_lines: List[Flux_line]
     resonators: List[Resonator]
+    dc_flux: List[Dc_flux]
     octaves: List[Octave]
     network: Network
     global_parameters: Global_parameters

@@ -15,13 +15,13 @@ from qualang_tools.bakery import baking
 from qualang_tools.units import unit
 from qm import generate_qua_script
 from qm.octave import QmOctaveConfig
-from set_octave import ElementsSettings, octave_settings
+#from set_octave import ElementsSettings, octave_settings
 from quam import QuAM
 from scipy.io import savemat
 from scipy.io import loadmat
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
-from qutip import *
+#from qutip import *
 from typing import Union
 import datetime
 import os
@@ -147,7 +147,7 @@ class AH_exp2D:
 
 		return poly_param
 
-	def qubit_vs_dc_flux(self, qubit_freq_sweep, dc_flux_sweep, sig_amp, fit_order = 4, plot_flag = True):
+	def qubit_vs_dc_flux(self, qubit_freq_sweep, dc_flux_sweep, sig_amp, fit_order = 4, to_plot = True):
 		"""
 		Use 4th order polynomial to fit to the qubit vs dc_flux tuning curve
 		input in Hz, fitted parameters in MHz
@@ -169,13 +169,13 @@ class AH_exp2D:
 		# extract qubit freq at each dc flux value
 		qubit_freq = []
 		for n_index, _ in enumerate(dc_flux_sweep):
-			qubit_freq_tmp = self.exp1D.peak_fit(x=qubit_freq_sweep_plt[n_index,:], y=sig_amp_plt[n_index,:], method="gaussian", plot_flag = False)
+			qubit_freq_tmp = self.exp1D.peak_fit(x=qubit_freq_sweep_plt[n_index,:], y=sig_amp_plt[n_index,:], method="gaussian", to_plot = False)
 			qubit_freq.append(qubit_freq_tmp / 1E6) # to MHz
 
 		# fit and plot
 		poly_param = np.polyfit(dc_flux_sweep, qubit_freq, deg=fit_order)
 		self.poly_param = poly_param
-		if plot_flag == True:
+		if to_plot:
 			fig = plt.figure()
 			plt.rcParams['figure.figsize'] = [8, 4]
 			plt.plot(dc_flux_sweep, qubit_freq, 'o')
@@ -183,7 +183,7 @@ class AH_exp2D:
 
 		return poly_param
 
-	def qubit_vs_fast_flux(self, qubit_freq_sweep, ff_sweep, sig_amp, fit_order = 4, plot_flag = True):
+	def qubit_vs_fast_flux(self, qubit_freq_sweep, ff_sweep, sig_amp, fit_order = 4, to_plot = True):
 		"""
 		Use 4th order polynomial to fit to the qubit vs fast_flux tuning curve
 		input in Hz, fitted parameters in MHz
@@ -206,7 +206,7 @@ class AH_exp2D:
 		# extract qubit freq at each dc flux value
 		qubit_freq = []
 		for n_index, _ in enumerate(ff_sweep):
-			qubit_freq_tmp = self.exp1D.peak_fit(x=qubit_freq_sweep_plt[n_index,:], y=sig_amp_plt[n_index,:], method="gaussian", plot_flag = False)
+			qubit_freq_tmp = self.exp1D.peak_fit(x=qubit_freq_sweep_plt[n_index,:], y=sig_amp_plt[n_index,:], method="gaussian", to_plot = False)
 			qubit_freq.append(qubit_freq_tmp / 1E6) # to MHz
 		qubit_freq = np.array(qubit_freq)
 		# symmetrize it
@@ -219,7 +219,7 @@ class AH_exp2D:
 		# fit and plot
 		poly_param = np.polyfit(ff_sweep_plt, qubit_freq_plt, deg=fit_order)
 		self.poly_param = poly_param
-		if plot_flag == True:
+		if to_plot:
 			fig = plt.figure()
 			plt.rcParams['figure.figsize'] = [8, 4]
 			plt.plot(ff_sweep_plt, qubit_freq_plt, 'o')

@@ -1,39 +1,83 @@
+from qm.qua import *
+from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
+from qm.octave import *
+from configuration import *
+from scipy import signal
+from qualang_tools.bakery import baking
+from qualang_tools.results import progress_counter, fetching_tool
+from qualang_tools.plot import interrupt_on_close
+from qualang_tools.loops import from_array
+from qm.octave import QmOctaveConfig
+from quam import QuAM
+#from qutip import *
+from typing import Union
+from macros import *
+import warnings
+import json
+import matplotlib.pyplot as plt
+import numpy as np
+import datetime
+import time
+import xarray as xr
+
+warnings.filterwarnings("ignore")
+
 class EH_Rabi:
-	"""
-	class in ExperimentHandle, for Rabi sequence related 1D experiments
+	"""Class in ExperimentHandle, for running Rabi sequence based 1D experiments.
+	
+	[description]
+	
+	Attributes:
+		set_octave
+		set_Labber
+		datalogs
+
 	Methods:
-		update_tPath
-		update_str_datetime
-		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg, cd_time, ff_amp = 1.0, simulate_flag = False, simulation_len = 1000)
+		qubit_freq
+		rabi_length
+		rabi_amp
+		qubit_switch_delay
+		qubit_switch_buffer
+		TLS_freq
+		TLS_rabi_length
+		TLS_rabi_amp
+		ef_freq
+		ef_rabi_length
+		ef_rabi_amp
+		ef_rabi_thermal
 	"""
+	
 	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
 
-	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, pi_amp_rel = 1.0, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		qubit spectroscopy experiment in 1D (equivalent of ESR for spin qubit)
 
+	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, pi_amp_rel = 1.0, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit spectroscopy experiment.
+		
+		Qubit spectroscopy to find the qubit resonance frequency, sweeping XY pulse frequency (equivalent of ESR for spin qubit).
+		
 		Args:
-		:param machine:
-		:param qubit_freq_sweep: 1D array of qubit frequency sweep
-		:param qubit_index:
-		:param n_avg: repetition of the experiments
-		:param cd_time: cooldown time between subsequent experiments
-		:param ff_amp: fast flux amplitude the overlaps with the Rabi pulse. The ff pulse is 40ns longer than Rabi pulse, and share the same center time.
-		:param simulate_flag: True-run simulation; False (default)-run experiment.
-		:param simulation_len: Length of the sequence to simulate. In clock cycles (4ns).
-		:param plot_flag: True (default) plot the experiment. False, do not plot.
-		Return:
+			machine ([type]): 1D array of qubit frequency sweep
+			qubit_freq_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			pi_amp_rel (number): [description] (default: `1.0`)
+			ff_amp (number): Fast flux amplitude that overlaps with the Rabi pulse. The ff pulse is 40ns longer than Rabi pulse, and share the pulse midpoint. (default: `0.0`)
+			n_avg (number): Repetitions of the experiments (default: `1E3`)
+			cd_time (number): Cooldown time between subsequent experiments (default: `10E3`)
+			to_simulate (bool): True: run simulation; False: run experiment (default: `False`)
+			simulation_len (number): Length of the sequence to simulate. In clock cycles (4ns) (default: `1000`)
+			final_plot (bool): True: plot the experiment. False: do not plot (default: `True`)
+		
+		Returns:
 			machine
-			qubit_freq_sweep
-			sig_amp
+			expt_dataset
 		"""
 		
 		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
 		qubit_if_sweep = qubit_freq_sweep - qubit_lo
-		qubit_if_sweep = np.round(qubit_if_sweep)
+		qubit_if_sweep = np.floor(qubit_if_sweep)
 		ff_duration = machine.qubits[qubit_index].pi_length + 40
 
 		if np.max(abs(qubit_if_sweep)) > 400E6: # check if parameters are within hardware limit
@@ -50,15 +94,14 @@ class EH_Rabi:
 					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 					wait(5, machine.qubits[qubit_index].name)
 					play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+					wait(5, machine.qubits[qubit_index].name)
 					align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
 						  machine.resonators[qubit_index].name)
-					#wait(4) # avoid overlap between Z and RO
 					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 					align()
-					wait(50)
 					# eliminate charge accumulation
 					play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
-					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+					wait(cd_time * u.ns, machine.flux_lines[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
 				save(n, n_st)
@@ -71,9 +114,9 @@ class EH_Rabi:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, qubit_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
@@ -85,29 +128,32 @@ class EH_Rabi:
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 			# Live plotting
-		    #%matplotlib qt
-			if plot_flag == True:
+			if live_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
 
-			while results.is_processing():
-				# Fetch results
-				I, Q, iteration = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				# progress bar
-				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				time.sleep(0.1)
+				while results.is_processing():
+					# Fetch results
+					I, Q, iteration = results.fetch_all()
+					I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+					Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+					# progress bar
+					progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
-				if plot_flag == True:
+					# Update the live plot!
 					plt.cla()
 					plt.title("Qubit Spectroscopy")
 					plt.plot((qubit_freq_sweep) / u.MHz, np.sqrt(I**2 +  Q**2), ".")
 					plt.xlabel("Qubit Frequency [MHz]")
 					plt.ylabel("Signal Amplitude [V]")
-
-			timestamp_finished = datetime.datetime.now()
+					plt.pause(0.1)
+			else:
+				while results.is_processing():
+					# Fetch results
+					_, _, iteration = results.fetch_all()
+					# progress bar
+					progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
@@ -136,12 +182,11 @@ class EH_Rabi:
 		play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 		wait(5, machine.qubits[qubit_index].name)
 		play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+		wait(5, machine.qubits[qubit_index].name)
 		align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
 			  machine.resonators[qubit_index].name)
-		#wait(4) # avoid overlap between Z and RO
 		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
 		align()
-		wait(50)
 		# eliminate charge accumulation
 		play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -150,78 +195,97 @@ class EH_Rabi:
 	save(n, n_st)"""
 
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
 
-			if plot_flag:
+			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
-				sig_amp.plot()
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
-	def rabi_length(self, machine, rabi_duration_sweep, qubit_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		qubit rabi experiment in 1D (sweeps length of rabi pulse)
+
+	def rabi_length(self, machine, tau_sweep_abs, qubit_index, pi_amp_rel = 1.0, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit time Rabi experiment
 		
-		:param machine:
-		:param rabi_duration_sweep: in clock cycles!
-		:param qubit_index:
-		:param pi_amp_rel:
-		:param n_avg:
-		:param cd_time:
-		:param simulate_flag:
-		:param simulation_len:
-		:param plot_flag:
-		Return:
+		Qubit time Rabi experiment in 1D, sweeping length of the Rabi pulse. 
+		Note that input argument is now in ns. Non-integer clock cycles values will be removed.
+		
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): in ns!
+			qubit_index ([type]): [description]
+			pi_amp_rel (number): [description] (default: `1.0`)
+			ff_amp (number): Fast flux amplitude that overlaps with the Rabi pulse. The ff pulse is 40ns longer than the Rabi pulse. (default: `0.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `10E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
 			machine
-			rabi_duration_sweep: in ns!
-			sig_amp
+			expt_dataset: time in ns!
 		"""
 		
+		qubit_if = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
 
-		if min(rabi_duration_sweep) < 4:
-			print("some rabi lengths shorter than 4 clock cycles, removed from run")
-			rabi_duration_sweep = rabi_duration_sweep[rabi_duration_sweep>3]
+		if min(tau_sweep_abs) < 16:
+			print("some ramsey lengths shorter than 4 clock cycles, removed from run")
+			tau_sweep_abs = tau_sweep_abs[tau_sweep_abs>15]
 
-		rabi_duration_sweep = rabi_duration_sweep.astype(int)
+		tau_sweep_cc = tau_sweep_abs//4 # in clock cycles
+		tau_sweep_cc = np.unique(tau_sweep_cc)
+		tau_sweep = tau_sweep_cc.astype(int) # clock cycles, used for experiments
+		tau_sweep_abs = tau_sweep * 4 # time in ns
 
 		with program() as time_rabi:
 			[I, Q, n, I_st, Q_st, n_st] = declare_vars()
 			t = declare(int)
 
 			with for_(n, 0, n < n_avg, n + 1):
-				with for_(*from_array(t, rabi_duration_sweep)):
+				with for_(*from_array(t, tau_sweep)):
+					update_frequency(machine.qubits[qubit_index].name, qubit_if)
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=t+10)
 					wait(5, machine.qubits[qubit_index].name)
 					play("pi" * amp(pi_amp_rel), machine.qubits[qubit_index].name, duration=t)
 					wait(5, machine.qubits[qubit_index].name)
-					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
+					align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+						  machine.resonators[qubit_index].name)
 					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					align()
+					# eliminate charge accumulation
+					play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=t+10)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
-					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
-				I_st.buffer(len(rabi_duration_sweep)).average().save("I")
-				Q_st.buffer(len(rabi_duration_sweep)).average().save("Q")
+				I_st.buffer(len(tau_sweep)).average().save("I")
+				Q_st.buffer(len(tau_sweep)).average().save("Q")
 				n_st.save("iteration")
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -231,59 +295,91 @@ class EH_Rabi:
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				#time.sleep(0.05)
+
+				if final_plot:
 					plt.cla()
-					plt.title("Time Rabi")
-					plt.plot(rabi_duration_sweep * 4, sig_amp, "b.")
-					plt.xlabel("tau [ns]")
+					plt.title("Qubit Time Rabi")
+					plt.plot(tau_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					plt.xlabel("Rabi Time [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
 
 			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			sig_phase = np.angle(I + 1j * Q)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Rabi Time": (["x"], tau_sweep_abs),
+			    },
+			)
+			
+			expt_name = 'time_rabi'
+			expt_long_name = 'Qubit Time Rabi'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(*from_array(t, tau_sweep_abs)):
+		update_frequency(machine.qubits[qubit_index].name, qubit_if)
+		play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=t+10)
+		wait(5, machine.qubits[qubit_index].name)
+		play("pi" * amp(pi_amp_rel), machine.qubits[qubit_index].name, duration=t)
+		wait(5, machine.qubits[qubit_index].name)
+		align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+			  machine.resonators[qubit_index].name)
+		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		align()
+		# eliminate charge accumulation
+		play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=t+10)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+		save(I, I_st)
+		save(Q, Q_st)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'time_rabi'
-			qubit_name = 'Q' + str(qubit_index + 1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name),
-					{"Q_rabi_duration": rabi_duration_sweep * 4, "sig_amp": sig_amp, "sig_phase": sig_phase})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				plt.cla()
+				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
-	def rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, n_avg = 1E3, cd_time = 10E3, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		qubit rabi experiment in 1D (sweeps amplitude of rabi pulse)
-		note that the input argument is in relative amplitude, the return argument is in absolute amplitude
-		
-		:param machine
-		:param rabi_amp_sweep: relative amplitude, based on pi_amp
-		:param qubit_index:
-		:param n_avg:
-		:param cd_time:
-		:param simulate_flag:
-		:param simulation_len:
-		:param plot_flag:
-		Return:
-			machine
-			rabi_amp_sweep_abs
-			sig_amp
-		"""
-		
 
+	def rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit power Rabi experiment.
+		
+		Qubit power Rabi experiment in 1D, sweeping amplitude of Rabi pulse, typically to calibrate a pi pulse. Note that the input argument is in relative amplitude, and return is in absolute amplitude.
+		
+		Args:
+			machine ([type]): [description]
+			rabi_amp_sweep_rel ([type]): Relative amplitude, based on pi_amp
+			qubit_index ([type]): [description]
+			ff_amp (number): Fast flux amplitude that overlaps with the Rabi pulse. The ff pulse is 40ns longer than the Rabi pulse. (default: `0.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `10E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
+			machine
+			expt_dataset
+		"""
+		
 		qubit_if = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
+		ff_duration = machine.qubits[qubit_index].pi_length + 40
+
 		if max(abs(rabi_amp_sweep_rel)) > 2:
 			print("some relative amps > 2, removed from experiment run")
 			rabi_amp_sweep_rel = rabi_amp_sweep_rel[abs(rabi_amp_sweep_rel) < 2]
@@ -296,14 +392,19 @@ class EH_Rabi:
 			with for_(n, 0, n < n_avg, n + 1):
 				with for_(*from_array(a, rabi_amp_sweep_rel)):
 					update_frequency(machine.qubits[qubit_index].name, qubit_if)
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 					wait(5, machine.qubits[qubit_index].name)
 					play("pi" * amp(a), machine.qubits[qubit_index].name)
 					wait(5, machine.qubits[qubit_index].name)
-					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
+					align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+						  machine.resonators[qubit_index].name)
 					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					align()
+					# eliminate charge accumulation
+					play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
-					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -313,20 +414,21 @@ class EH_Rabi:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=1000)  # in clock cycles
 			job = qmm.simulate(config, power_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(power_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -336,56 +438,86 @@ class EH_Rabi:
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
+				
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				
+				if final_plot:
 					plt.cla()
-					plt.title("Power Rabi")
-					plt.plot(rabi_amp_sweep_abs, sig_amp, "b.")
-					plt.xlabel("rabi amplitude [V]")
+					plt.title("Qubit Power Rabi")
+					plt.plot(rabi_amp_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					plt.xlabel("Rabi Amplitude [V]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
 
 			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
 			# Convert I & Q to Volts
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			sig_phase = np.angle(I + 1j * Q)
+			
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Rabi Amplitude": (["x"], rabi_amp_sweep_abs),
+			    },
+			)
+			
+			expt_name = 'power_rabi'
+			expt_long_name = 'Qubit Power Rabi'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(*from_array(a, rabi_amp_sweep_rel)):
+		update_frequency(machine.qubits[qubit_index].name, qubit_if)
+		play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+		wait(5, machine.qubits[qubit_index].name)
+		play("pi" * amp(a), machine.qubits[qubit_index].name)
+		wait(5, machine.qubits[qubit_index].name)
+		align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+			  machine.resonators[qubit_index].name)
+		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		align()
+		# eliminate charge accumulation
+		play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+		save(I, I_st)
+		save(Q, Q_st)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'power_rabi'
-			qubit_name = 'Q' + str(qubit_index + 1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name),
-					{"Q_rabi_amplitude": rabi_amp_sweep_abs, "sig_amp": sig_amp, "sig_phase": sig_phase})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				plt.cla()
+				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
-	def qubit_switch_delay(self, machine, qubit_switch_delay_sweep, qubit_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		1D experiment to calibrate switch delay for the qubit.
 
+	def qubit_switch_delay(self, machine, qubit_switch_delay_sweep, qubit_index, n_avg, cd_time, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Calibrate RF switch delay for qubit
+		
+		[description]
+		
 		Args:
-			machine:
-			qubit_switch_delay_sweep (): in ns
-			qubit_index ():
-			n_avg ():
-			cd_time ():
-			simulate_flag ():
-			simulation_len ():
-			plot_flag ():
-			
+			machine ([type]): [description]
+			qubit_switch_delay_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg ([type]): [description]
+			cd_time ([type]): [description]
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
 		Returns:
 			machine
-			qubit_switch_delay_sweep
-			sig_amp
+			expt_dataset
 		"""
 		
 
@@ -415,9 +547,9 @@ class EH_Rabi:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, qubit_switch_delay_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
@@ -426,7 +558,7 @@ class EH_Rabi:
 			start_time = time.time()
 			I_tot = []
 			Q_tot = []
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 
@@ -435,11 +567,12 @@ class EH_Rabi:
 				config = build_config(machine)
 
 				qm = qmm.open_qm(config)
+				timestamp_created = datetime.datetime.now()
 				job = qm.execute(qubit_switch_delay_prog)
 				# Get results from QUA program
 				results = fetching_tool(job, data_list=["I", "Q"], mode = "live")
 
-				if plot_flag:
+				if final_plot:
 					interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
 				while results.is_processing():
 					# Fetch results
@@ -460,7 +593,7 @@ class EH_Rabi:
 			sig_amp = np.abs(sigs_qubit)  # Amplitude
 			sig_phase = np.angle(sigs_qubit)  # Phase
 
-			if plot_flag == True:
+			if final_plot:
 				plt.cla()
 				plt.title("qubit switch delay")
 				plt.plot(qubit_switch_delay_sweep, sig_amp, ".")
@@ -478,28 +611,25 @@ class EH_Rabi:
 
 			return machine, expt_dataset
 
-	def qubit_switch_buffer(self, machine, qubit_switch_buffer_sweep, qubit_index, n_avg, cd_time, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		1D experiment to calibrate switch buffer for the qubit.
 
-		Args:
-			machine
-			qubit_switch_buffer_sweep (): in ns, this will be added to both sides of the switch (x2), to account for the rise and fall
-			qubit_index ():
-			n_avg ():
-			cd_time ():
-			tPath ():
-			f_str_datetime ():
-			simulate_flag ():
-			simulation_len ():
-			plot_flag ():
-			
-		Returns:
-			machine
-			qubit_switch_buffer_sweep
-			sig_amp
-		"""
+	def qubit_switch_buffer(self, machine, qubit_switch_buffer_sweep, qubit_index, n_avg, cd_time, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Calibrate RF switch buffer for qubit.
 		
+		The buffer accounts for rise/fall time, and is added to both sides of the switch time (x2).
+		
+		Args:
+			machine ([type]): [description]
+			qubit_switch_buffer_sweep ([type]): in ns
+			qubit_index ([type]): [description]
+			n_avg ([type]): [description]
+			cd_time ([type]): [description]
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
+			machine, expt_dataset
+		"""
 
 		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
 		qubit_if = machine.qubits[qubit_index].f_01 - qubit_lo
@@ -527,9 +657,9 @@ class EH_Rabi:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, qubit_switch_buffer_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
@@ -538,7 +668,7 @@ class EH_Rabi:
 			start_time = time.time()
 			I_tot = []
 			Q_tot = []
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 
@@ -547,11 +677,12 @@ class EH_Rabi:
 				config = build_config(machine)
 
 				qm = qmm.open_qm(config)
+				timestamp_created = datetime.datetime.now()
 				job = qm.execute(qubit_switch_buffer_prog)
 				# Get results from QUA program
 				results = fetching_tool(job, data_list=["I", "Q"], mode = "live")
 
-				if plot_flag:
+				if final_plot:
 					interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
 				while results.is_processing():
 					# Fetch results
@@ -572,7 +703,7 @@ class EH_Rabi:
 			sig_amp = np.abs(sigs_qubit)  # Amplitude
 			sig_phase = np.angle(sigs_qubit)  # Phase
 
-			if plot_flag == True:
+			if final_plot:
 				plt.cla()
 				plt.title("qubit switch buffer")
 				plt.plot(qubit_switch_buffer_sweep, sig_amp, ".")
@@ -590,38 +721,36 @@ class EH_Rabi:
 
 			return machine, expt_dataset
 
-	def TLS_freq(self, machine, TLS_freq_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		1D experiment of TLS spectroscopy
-		a strong MW pulse (on TLS) - SWAP - readout
 
-		uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index]
-		the TLS driving pulse is a square wave, with duration = machine.qubits[qubit_index].pi_length_tls[TLS_index],
-		 amplitude = machine.qubits[qubit_index].pi_amp_tls[TLS_index]
-
+	def TLS_freq(self, machine, TLS_freq_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""TLS spectroscopy experiment.
+		
+		TLS spectroscopy to find the TLS resonance frequency, sweeping frequency of a strong XY pulse that directly drives the TLS, then SWAP to the qubit for readout. 
+		SWAP uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index];
+		TLS pulse is a square wave defined by machine.qubits[qubit_index].pi_length_tls/pi_amp_tls[TLS_index]. These TLS pulse parameters will be passed to hardware_parameters first.
+		
 		Args:
-			machine
-			TLS_freq_sweep ():
-			qubit_index ():
-			TLS_index ():
-			pi_amp_rel ():
-			n_avg ():
-			cd_time ():
-			simulate_flag ():
-			simulation_len ():
-			plot_flag ():
-
+			machine ([type]): [description]
+			TLS_freq_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			pi_amp_rel (number): [description] (default: `1.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `10E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
 		Returns:
 			machine
-			TLS_freq_sweep
-			sig_amp
+			expt_dataset
 		"""
+
 		calibrate_octave = False # flag for calibrating octave. So that I can move this to the real run, avoiding it for simulation
 
 		if cd_time_TLS is None:
 			cd_time_TLS = cd_time_qubit
-
-		
 
 		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
 		TLS_if_sweep = TLS_freq_sweep - qubit_lo
@@ -683,9 +812,9 @@ class EH_Rabi:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, TLS_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
@@ -695,12 +824,13 @@ class EH_Rabi:
 				machine = self.set_octave.calibration(machine, qubit_index, TLS_index = TLS_index, log_flag = True, calibration_flag = True, qubit_only = True)
 
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(TLS_freq_prog)
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 			# Live plotting
 		    #%matplotlib qt
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -712,7 +842,7 @@ class EH_Rabi:
 				# progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
-				if plot_flag:
+				if final_plot:
 					plt.cla()
 					plt.title("TLS spectroscopy")
 					plt.plot((TLS_freq_sweep) / u.MHz, np.sqrt(I**2 +  Q**2), ".")
@@ -738,31 +868,33 @@ class EH_Rabi:
 
 			return machine, expt_dataset
 
-	def TLS_rabi_length(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		1D experiment that runs time rabi of TLS
 
-		uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index]
-		the TLS driving pulse is a square wave, with amplitude = machine.qubits[qubit_index].pi_amp_tls[TLS_index] * 0.25 V
-
+	def TLS_rabi_length(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""TLS time Rabi experiment.
+		
+		TLS time Rabi experiment in 1D, sweeping length of the Rabi pulse. The state is then SWAPed to the qubit for readout.
+		SWAP uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index];
+		TLS pulse is a square wave defined with machine.qubits[qubit_index].pi_amp_tls[TLS_index]. These TLS pulse parameters will be passed to hardware_parameters first.
+		Note that input argument is in clock cycles, and the return is in ns!
+		
 		Args:
-			machine
-			rabi_duration_sweep (): in clock cycles! Must be integers!
-			qubit_index ():
-			TLS_index ():
-			pi_amp_rel ():
-			n_avg ():
-			cd_time_qubit ():
-			cd_time_TLS ():
-			simulate_flag ():
-			simulation_len ():
-			plot_flag ():
-			
+			machine ([type]): [description]
+			rabi_duration_sweep ([type]): in clock cycles! Must be integers!
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			pi_amp_rel (number): [description] (default: `1.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
 		Returns:
 			machine
-			rabi_duration_sweep * 4
-			sig_amp
+			expt_dataset
 		"""
+
 		if cd_time_TLS is None:
 			cd_time_TLS = cd_time_qubit
 
@@ -828,21 +960,22 @@ class EH_Rabi:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, TLS_rabi_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(TLS_rabi_prog)
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 			# Live plotting
 		    #%matplotlib qt
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -854,13 +987,11 @@ class EH_Rabi:
 				# progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
-				if plot_flag:
+				if final_plot:
 					plt.cla()
 					plt.title("TLS time rabi")
-					#plt.plot(rabi_duration_sweep * 4, np.sqrt(I**2 +  Q**2), ".")
 					plt.plot(rabi_duration_sweep * 4, np.sqrt(I**2 + Q**2), ".")
 					plt.xlabel("tau [ns]")
-					#plt.ylabel("Signal Amplitude [V]")
 					plt.ylabel("Signal Amplitude [V]")
 
 			# fetch all data after live-updating
@@ -882,28 +1013,30 @@ class EH_Rabi:
 
 			return machine, expt_dataset
 
-	def TLS_rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
 
-		1D experiment that runs power rabi of TLS
-
-		uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index]
-		the TLS driving pulse is a square wave, with amplitude = machine.qubits[qubit_index].pi_amp_tls[TLS_index] * 0.25 V
-
-		note that the input argument is in relative amplitude, the return argument is in absolute amplitude
-
-		:param machine
-		:param rabi_amp_sweep: relative amplitude, based on pi_amp_tls
-		:param qubit_index:
-		:param n_avg:
-		:param cd_time:
-		:param simulate_flag:
-		:param simulation_len:
-		:param plot_flag:
-		Return:
+	def TLS_rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""TLS power Rabi experiment.
+		
+		TLS power Rabi experiment in 1D, sweeping amplitude of Rabi pulse, typically to calibrate a TLS pi pulse. The TLS state is SWAPed to qubit for readout.
+		SWAP uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index];
+		TLS pulse is a square wave defined with machine.qubits[qubit_index].pi_length_tls[TLS_index]. These TLS pulse parameters will be passed to hardware_parameters first.
+		Note that the input argument is in relative amplitude, and return is in absolute amplitude.
+		
+		Args:
+			machine ([type]): [description]
+			rabi_amp_sweep_rel ([type]): Relative amplitude, based on machine.qubits[qubit_index].pi_amp_tls[TLS_index]
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
 			machine
-			rabi_amp_sweep_abs
-			sig_amp
+			expt_dataset
 		"""
 
 		if cd_time_TLS is None:
@@ -971,20 +1104,21 @@ class EH_Rabi:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=1000)  # in clock cycles
 			job = qmm.simulate(config, tls_power_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_power_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -998,13 +1132,13 @@ class EH_Rabi:
 				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
 					plt.title("TLS power rabi")
 					plt.plot(rabi_amp_sweep_abs, sig_amp, "b.")
 					plt.xlabel("rabi amplitude [V]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
+					plt.pause(0.02)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
@@ -1026,28 +1160,30 @@ class EH_Rabi:
 
 			return machine, expt_dataset
 
-	def ef_freq(self, machine, ef_freq_sweep, qubit_index, pi_amp_rel_ef = 1.0, n_avg = 1E3, cd_time = 10E3, readout_state = 'g', simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		ef spectroscopy experiment in 1D
 
-		Args:
-		:param machine
-		:param ef_freq_sweep: 1D array of qubit ef transition frequency sweep
-		:param qubit_index:
-		:param pi_amp_rel_ef: 1.0 (default). relative amplitude of pi pulse for ef transition
-		:param n_avg: repetition of the experiments
-		:param cd_time: cooldown time between subsequent experiments
-		:param readout_state: state used for readout. If 'g' (default), ground state will be used, so a pi pulse to bring population back to g is employed. If 'e', then no additional pi pulse for readout is sent
-		:param ff_amp: fast flux amplitude the overlaps with the Rabi pulse. The ff pulse is 40ns longer than Rabi pulse, and share the same center time.
-		:param simulate_flag: True-run simulation; False (default)-run experiment.
-		:param simulation_len: Length of the sequence to simulate. In clock cycles (4ns).
-		:param plot_flag: True (default) plot the experiment. False, do not plot.
-		Return:
-			machine
-			ef_freq_sweep
-			sig_amp
-		"""
+	def ef_freq(self, machine, ef_freq_sweep, qubit_index, pi_amp_rel_ef = 1.0, n_avg = 1E3, cd_time = 10E3, readout_state = 'g', to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit ef transition spectroscopy experiment.
 		
+		Qubit ef transition spectroscopy to find the ef transition frequency. Qubit is excited to e first by a ge pi pulse, then an ef driving pulse with varying frequency is sent.
+		An optional ge pi pulse (if readout_state = 'g'') is applied to enhance the signal contrast.
+
+		
+		Args:
+			machine ([type]): [description]
+			ef_freq_sweep ([type]): 1D array of qubit ef transition frequency sweep
+			qubit_index ([type]): [description]
+			pi_amp_rel_ef (number): relative amplitude of pi pulse for ef transition (default: `1.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `10E3`)
+			readout_state (str): If 'g' (default), a ge pi pulse before readout brings Pe to Pg; If 'e', no additional pulse is applied. (default: `'g'`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
+			machine
+			expt_dataset
+		"""
 
 		if readout_state not in ['g','e']:
 			print('Readout state not g/e. Abort...')
@@ -1058,14 +1194,14 @@ class EH_Rabi:
 		ef_if_sweep = ef_freq_sweep - qubit_lo
 		ef_if_sweep = np.round(ef_if_sweep)
 
-		if abs(qubit_if) > 350E6:
-			print("qubit if > 350MHz")
+		if abs(qubit_if) > 400E6:
+			print("qubit if > 400MHz")
 			return machine, None
 		if abs(qubit_if) < 20E6:
 			print("qubit if < 20MHz")
 			return machine, None
-		if np.max(abs(ef_if_sweep)) > 350E6: # check if parameters are within hardware limit
-			print("ef if range > 350MHz")
+		if np.max(abs(ef_if_sweep)) > 400E6: # check if parameters are within hardware limit
+			print("ef if range > 400MHz")
 			return machine, None
 		if np.min(abs(ef_if_sweep)) < 20E6: # check if parameters are within hardware limit
 			print("ef if range < 20MHz")
@@ -1077,7 +1213,7 @@ class EH_Rabi:
 			with for_(n, 0, n < n_avg, n+1):
 				with for_(*from_array(df,ef_if_sweep)):
 					update_frequency(machine.qubits[qubit_index].name, qubit_if)
-					play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+					play('pi', machine.qubits[qubit_index].name)
 					update_frequency(machine.qubits[qubit_index].name, df)
 					
 					if pi_amp_rel_ef==1.0:
@@ -1104,21 +1240,22 @@ class EH_Rabi:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
-		if simulate_flag: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration=simulation_len)
 			job = qmm.simulate(config, ef_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(ef_freq_prog)
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 			# Live plotting
 		    #%matplotlib qt
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -1130,73 +1267,117 @@ class EH_Rabi:
 				# progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
-				if plot_flag == True:
+				if final_plot:
 					plt.cla()
-					plt.title("ef spectroscopy")
+					plt.title(r"Qubit e-f Spectroscopy")
 					plt.plot((ef_freq_sweep) / u.MHz, np.sqrt(I**2 +  Q**2), ".")
-					plt.xlabel("Frequency [MHz]")
+					plt.xlabel("ef Frequency [MHz]")
 					plt.ylabel("Signal Amplitude [V]")
 
 			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I**2 + Q**2)
-			sig_phase = np.angle(I + 1j * Q)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Qubit Frequency": (["x"], ef_freq_sweep),
+			    },
+			)
+			
+			expt_dataset.attrs["readout_state"] = readout_state # save unique attr for this experiment
+
+			expt_name = 'ef_spec'
+			expt_long_name = 'Qubit e-f Spectroscopy'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n+1):
+	with for_(*from_array(df,ef_if_sweep)):
+		update_frequency(machine.qubits[qubit_index].name, qubit_if)
+		play('pi', machine.qubits[qubit_index].name)
+		update_frequency(machine.qubits[qubit_index].name, df)
+		
+		if pi_amp_rel_ef==1.0:
+			play('pi_ef', machine.qubits[qubit_index].name)
+		else:
+			play('pi_ef' * amp(pi_amp_rel_ef), machine.qubits[qubit_index].name)
+		
+		if readout_state == 'g':
+			update_frequency(machine.qubits[qubit_index].name, qubit_if)
+			play('pi', machine.qubits[qubit_index].name)
+		
+		align()
+		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+		save(I, I_st)
+		save(Q, Q_st)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'ef_freq'
-			qubit_name = 'Q' + str(qubit_index + 1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name), {"ef_freq": ef_freq_sweep, "sig_amp": sig_amp, "sig_phase": sig_phase, "readout_state": readout_state})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				plt.cla()
+				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
-	def ef_rabi_length(self, machine, rabi_duration_sweep, qubit_index, pi_amp_rel_ef = 1.0, n_avg = 1E3, cd_time = 10E3, readout_state = 'g', simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		qubit ef rabi experiment in 1D (sweeps length of rabi pulse)
+
+	def ef_rabi_length(self, machine, tau_sweep_abs, qubit_index, pi_amp_rel_ef = 1.0, n_avg = 1E3, cd_time = 10E3, readout_state = 'g', to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit ef transition time Rabi experiment
 		
-		:param machine
-		:param rabi_duration_sweep: in clock cycles!
-		:param qubit_index:
-		:param pi_amp_rel_ef: 1.0 (default). relative amplitude of pi pulse for ef transition
-		:param n_avg:
-		:param cd_time:
-		:param readout_state: state used for readout. 'g' (default), a g-e pi pulse before readout. If 'e', then no additional pi pulse for readout.
-		:param simulate_flag:
-		:param simulation_len:
-		:param plot_flag:
-		Return:
+		Qubit ef transition time Rabi experiment in 1D, sweeping length of the Rabi pulse. Qubit is excited to e first by a ge pi pulse, then an ef driving pulse with varying length is sent.
+		An optional ge pi pulse (if readout_state = 'g'') is applied to enhance the signal contrast.
+		Note that input argument is in ns (in older version it's clock cycle)!
+		
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): in ns!
+			qubit_index ([type]): [description]
+			pi_amp_rel_ef (number): [description] (default: `1.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `10E3`)
+			readout_state (str): If 'g' (default), a ge pi pulse before readout brings Pe to Pg; If 'e', no additional pulse is applied. (default: `'g'`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
 			machine
-			rabi_duration_sweep: in ns!
-			sig_amp
+			expt_dataset
 		"""
-		
 
 		if readout_state not in ['g','e']:
 			print('Readout state not g/e. Abort...')
 			return machine, None
 
-		if min(rabi_duration_sweep) < 4:
-			print("some rabi lengths shorter than 4 clock cycles, removed from run")
-			rabi_duration_sweep = rabi_duration_sweep[rabi_duration_sweep>3]
+		if min(tau_sweep_abs) < 16:
+			print("some ramsey lengths shorter than 4 clock cycles, removed from run")
+			tau_sweep_abs = tau_sweep_abs[tau_sweep_abs>15]
 
-		rabi_duration_sweep = rabi_duration_sweep.astype(int)
+		tau_sweep_cc = tau_sweep_abs//4 # in clock cycles
+		tau_sweep_cc = np.unique(tau_sweep_cc)
+		tau_sweep = tau_sweep_cc.astype(int) # clock cycles, used for experiments
+		tau_sweep_abs = tau_sweep * 4 # time in ns
+
 		qubit_if = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
 		ef_if = machine.qubits[qubit_index].f_01 - machine.qubits[qubit_index].anharmonicity - machine.octaves[0].LO_sources[1].LO_frequency
 
-		if abs(qubit_if) > 350E6:
-			print("qubit if > 350MHz")
+		if abs(qubit_if) > 400E6:
+			print("qubit if > 400MHz")
 			return machine, None
 		if abs(qubit_if) < 20E6:
 			print("qubit if < 20MHz")
 			return machine, None
-		if abs(ef_if) > 350E6:
-			print("ef if > 350MHz")
+		if abs(ef_if) > 400E6:
+			print("ef if > 400MHz")
 			return machine, None
 		if abs(ef_if) < 20E6:
 			print("ef if < 20MHz")
@@ -1207,7 +1388,7 @@ class EH_Rabi:
 			t = declare(int)
 
 			with for_(n, 0, n < n_avg, n + 1):
-				with for_(*from_array(t, rabi_duration_sweep)):
+				with for_(*from_array(t, tau_sweep)):
 					update_frequency(machine.qubits[qubit_index].name, qubit_if)
 					play('pi', machine.qubits[qubit_index].name)
 					update_frequency(machine.qubits[qubit_index].name, ef_if)
@@ -1219,7 +1400,7 @@ class EH_Rabi:
 
 					if readout_state == 'g':
 						update_frequency(machine.qubits[qubit_index].name, qubit_if)
-						play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+						play('pi', machine.qubits[qubit_index].name)
 					
 					align()
 					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
@@ -1228,26 +1409,27 @@ class EH_Rabi:
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 			with stream_processing():
-				I_st.buffer(len(rabi_duration_sweep)).average().save("I")
-				Q_st.buffer(len(rabi_duration_sweep)).average().save("Q")
+				I_st.buffer(len(tau_sweep)).average().save("I")
+				Q_st.buffer(len(tau_sweep)).average().save("Q")
 				n_st.save("iteration")
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi_ef, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi_ef)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -1257,58 +1439,95 @@ class EH_Rabi:
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				
+				if final_plot:
 					plt.cla()
-					plt.title("ef time Rabi")
-					plt.plot(rabi_duration_sweep * 4, sig_amp, "b.")
-					plt.xlabel("tau [ns]")
+					plt.title("Qubit e-f Time Rabi")
+					plt.plot(tau_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					plt.xlabel("Rabi Time [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
 
 			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			sig_phase = np.angle(I + 1j * Q)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Rabi Time": (["x"], tau_sweep_abs),
+			    },
+			)
+
+			expt_dataset.attrs["readout_state"] = readout_state # save unique attr for this experiment
+			
+			expt_name = 'time_rabi_ef'
+			expt_long_name = 'Qubit e-f Time Rabi'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(*from_array(t, tau_sweep)):
+		update_frequency(machine.qubits[qubit_index].name, qubit_if)
+		play('pi', machine.qubits[qubit_index].name)
+		update_frequency(machine.qubits[qubit_index].name, ef_if)
+		
+		if pi_amp_rel_ef==1.0:
+			play('pi_ef', machine.qubits[qubit_index].name, duration=t) # clock cycle
+		else:
+			play('pi_ef' * amp(pi_amp_rel_ef), machine.qubits[qubit_index].name, duration=t) # clock cycle
+
+		if readout_state == 'g':
+			update_frequency(machine.qubits[qubit_index].name, qubit_if)
+			play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+		
+		align()
+		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		save(I, I_st)
+		save(Q, Q_st)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'ef_time_rabi'
-			qubit_name = 'Q' + str(qubit_index + 1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name),
-					{"Q_rabi_duration": rabi_duration_sweep * 4, "sig_amp": sig_amp, "sig_phase": sig_phase, "readout_state": readout_state})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				plt.cla()
+				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
-	def ef_rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, n_avg = 1E3, cd_time = 10E3, readout_state = 'g', simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		qubit ef rabi experiment in 1D (sweeps amplitude of rabi pulse)
-		note that the input argument is in relative amplitude, the return argument is in absolute amplitude
 
-		:param rabi_amp_sweep_rel: relative amplitude, based on pi_amp_ef
-		:param qubit_index:
-		:param pi_amp_rel: for the ge pulse
-		:param n_avg:
-		:param cd_time:
-		:param readout_state: state used for readout. 'g' (default), a g-e pi pulse before readout. If 'e', then no additional pi pulse for readout.
-		:param simulate_flag:
-		:param simulation_len:
-		:param plot_flag:
-		Return:
-			machine
-			rabi_amp_sweep_abs
-			sig_amp
-		"""
+	def ef_rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, n_avg = 1E3, cd_time = 10E3, readout_state = 'g', to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit ef transition power Rabi experiment.
 		
+		Qubit ef transition power Rabi experiment in 1D, sweeping amplitude of Rabi pulse, typically to calibrate an ef pi pulse. 
+		Qubit is excited to e first by a ge pi pulse, then an ef driving pulse with varying amplitude is sent.
+		An optional ge pi pulse (if readout_state = 'g'') is applied to enhance the signal contrast.
+		Note that the input argument is in relative amplitude, and return is in absolute amplitude.
+		
+		Args:
+			machine ([type]): [description]
+			rabi_amp_sweep_rel ([type]): Relative amplitude, based on pi_amp_ef
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `10E3`)
+			readout_state (str): If 'g' (default), a ge pi pulse before readout brings Pe to Pg; If 'e', no additional pulse is applied. (default: `'g'`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+		
+		Returns:
+			machine
+			expt_dataset
+		"""
 
 		if readout_state not in ['g','e']:
 			print('Readout state not g/e. Abort...')
@@ -1318,14 +1537,14 @@ class EH_Rabi:
 		rabi_amp_sweep_abs = rabi_amp_sweep_rel * machine.qubits[qubit_index].pi_amp_ef # actual rabi amplitude
 		ef_if = machine.qubits[qubit_index].f_01 - machine.qubits[qubit_index].anharmonicity - machine.octaves[0].LO_sources[1].LO_frequency
 
-		if abs(qubit_if) > 350E6:
-			print("qubit if > 350MHz")
+		if abs(qubit_if) > 400E6:
+			print("qubit if > 400MHz")
 			return None
 		if abs(qubit_if) < 20E6:
 			print("qubit if < 20MHz")
 			return None
-		if abs(ef_if) > 350E6:
-			print("ef if > 350MHz")
+		if abs(ef_if) > 400E6:
+			print("ef if > 400MHz")
 			return None
 		if abs(ef_if) < 20E6:
 			print("ef if < 20MHz")
@@ -1360,20 +1579,21 @@ class EH_Rabi:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=1000)  # in clock cycles
 			job = qmm.simulate(config, power_rabi_ef, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(power_rabi_ef)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -1383,79 +1603,116 @@ class EH_Rabi:
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				
+				if final_plot:
 					plt.cla()
-					plt.title("ef power Rabi")
-					plt.plot(rabi_amp_sweep_abs, sig_amp, "b.")
-					plt.xlabel("rabi amplitude [V]")
+					plt.title("Qubit e-f Power Rabi")
+					plt.plot(rabi_amp_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					plt.xlabel("Rabi Amplitude [V]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
 
 			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			sig_phase = np.angle(I + 1j * Q)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Rabi Amplitude": (["x"], rabi_amp_sweep_abs),
+			    },
+			)
+
+			expt_dataset.attrs["readout_state"] = readout_state # save unique attr for this experiment
+			
+			expt_name = 'power_rabi_ef'
+			expt_long_name = 'Qubit e-f Power Rabi'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(*from_array(a, rabi_amp_sweep_rel)):
+		update_frequency(machine.qubits[qubit_index].name, qubit_if)
+		play('pi', machine.qubits[qubit_index].name)
+		update_frequency(machine.qubits[qubit_index].name, ef_if)
+		play('pi_ef' * amp(a), machine.qubits[qubit_index].name)
+		
+		if readout_state == 'g':
+			update_frequency(machine.qubits[qubit_index].name, qubit_if)
+			play('pi', machine.qubits[qubit_index].name)
+		
+		align()
+		readout_avg_macro(machine.resonators[qubit_index].name, I, Q)
+		save(I, I_st)
+		save(Q, Q_st)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'ef_power_rabi'
-			qubit_name = 'Q' + str(qubit_index + 1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name),
-					{"Q_rabi_amplitude": rabi_amp_sweep_abs, "sig_amp": sig_amp, "sig_phase": sig_phase, "readout_state": readout_state})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				plt.cla()
+				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
-	def ef_rabi_length_thermal(self, machine, rabi_duration_sweep, qubit_index, n_avg = 1E3, cd_time = 10E3, readout_state = 'e', simulate_flag = False, simulation_len = 1000, plot_flag = True):
-		"""
-		qubit ef rabi experiment with no first ge pi pulse
+
+	def ef_rabi_length_thermal(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 10E3, readout_state = 'e', to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+		"""Qubit ef Rabi experiment. 
+		
+		Qubit from the g state is directly driven by an ef pulse with varying length. 
+		An optional ge pi pulse (if readout_state = 'g'') is applied to enhance the signal contrast.
 		This is to measure the oscillation of residual |e> state, A_sig in https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.114.240501
+		Together with ef_rabi_length experiment, one can extract the residual thermal Pe.
+
 		
-		:param machine
-		:param rabi_duration_sweep: in clock cycles!
-		:param qubit_index:
-		:param n_avg:
-		:param cd_time:
-		:param readout_state: state used for readout. 'e' (default). If 'g', then a g-e pi pulse before readout.
-		:param simulate_flag:
-		:param simulation_len:
-		:param plot_flag:
-		Return:
-			machine
-			rabi_duration_sweep: in ns!
-			sig_amp
-		"""
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): in ns!
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `10E3`)
+			readout_state (str): If 'g' (default), a ge pi pulse before readout brings Pe to Pg; If 'e', no additional pulse is applied. (default: `'e'`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
 		
+		Returns:
+			[type]: [description]
+		"""	
 
 		if readout_state not in ['g','e']:
 			print('Readout state not g/e. Abort...')
 			return machine, None
 
-		if min(rabi_duration_sweep) < 4:
-			print("some rabi lengths shorter than 4 clock cycles, removed from run")
-			rabi_duration_sweep = rabi_duration_sweep[rabi_duration_sweep>3]
+		if min(tau_sweep_abs) < 16:
+			print("some ramsey lengths shorter than 4 clock cycles, removed from run")
+			tau_sweep_abs = tau_sweep_abs[tau_sweep_abs>15]
 
-		rabi_duration_sweep = rabi_duration_sweep.astype(int)
+		tau_sweep_cc = tau_sweep_abs//4 # in clock cycles
+		tau_sweep_cc = np.unique(tau_sweep_cc)
+		tau_sweep = tau_sweep_cc.astype(int) # clock cycles, used for experiments
+		tau_sweep_abs = tau_sweep * 4 # time in ns
+
 		qubit_if = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
 		ef_if = machine.qubits[qubit_index].f_01 - machine.qubits[qubit_index].anharmonicity - machine.octaves[0].LO_sources[1].LO_frequency
 
-		if abs(qubit_if) > 350E6:
-			print("qubit if > 350MHz")
+		if abs(qubit_if) > 400E6:
+			print("qubit if > 400MHz")
 			return machine, None
 		if abs(qubit_if) < 20E6:
 			print("qubit if < 20MHz")
 			return machine, None
-		if abs(ef_if) > 350E6:
-			print("ef if > 350MHz")
+		if abs(ef_if) > 400E6:
+			print("ef if > 400MHz")
 			return machine, None
 		if abs(ef_if) < 20E6:
 			print("ef if < 20MHz")
@@ -1466,7 +1723,7 @@ class EH_Rabi:
 			t = declare(int)
 
 			with for_(n, 0, n < n_avg, n + 1):
-				with for_(*from_array(t, rabi_duration_sweep)):
+				with for_(*from_array(t, tau_sweep)):
 					update_frequency(machine.qubits[qubit_index].name, ef_if)
 					play('pi_ef' * amp(pi_amp_rel_ef), machine.qubits[qubit_index].name, duration=t)
 					if readout_state == 'g':
@@ -1480,26 +1737,27 @@ class EH_Rabi:
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 			with stream_processing():
-				I_st.buffer(len(rabi_duration_sweep)).average().save("I")
-				Q_st.buffer(len(rabi_duration_sweep)).average().save("Q")
+				I_st.buffer(len(tau_sweep)).average().save("I")
+				Q_st.buffer(len(tau_sweep)).average().save("Q")
 				n_st.save("iteration")
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(machine.network.qop_ip, port = '9510', octave=octave_config, log_level = "ERROR")
+		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 
-		if simulate_flag:
+		if to_simulate:
 			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
 			job = qmm.simulate(config, time_rabi_ef_thermal, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			qm = qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi_ef_thermal)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if plot_flag == True:
+			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -1509,34 +1767,61 @@ class EH_Rabi:
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if plot_flag == True:
+				
+				if final_plot:
 					plt.cla()
-					plt.title("residual e state time rabi")
-					plt.plot(rabi_duration_sweep * 4, sig_amp, "b.")
-					plt.xlabel("tau [ns]")
+					plt.title("Residual e-state Time Rabi")
+					plt.plot(tau_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					plt.xlabel("Rabi Time [ns]")
 					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.01)
 
 			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			sig_phase = np.angle(I + 1j * Q)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Rabi Time": (["x"], tau_sweep_abs),
+			    },
+			)
+
+			expt_dataset.attrs["readout_state"] = readout_state # save unique attr for this experiment
+			
+			expt_name = 'time_rabi_ef_thermal'
+			expt_long_name = 'Residual e-state Time Rabi'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(*from_array(t, tau_sweep)):
+		update_frequency(machine.qubits[qubit_index].name, ef_if)
+		play('pi_ef' * amp(pi_amp_rel_ef), machine.qubits[qubit_index].name, duration=t)
+		if readout_state == 'g':
+			update_frequency(machine.qubits[qubit_index].name, qubit_if)
+			play('pi', machine.qubits[qubit_index].name)
+		
+		align()
+		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		save(I, I_st)
+		save(Q, Q_st)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'time_rabi_ef_thermal'
-			qubit_name = 'Q' + str(qubit_index + 1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name),
-					{"Q_rabi_duration": rabi_duration_sweep * 4, "sig_amp": sig_amp, "sig_phase": sig_phase, "readout_state": readout_state})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				plt.cla()
+				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
+				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
+
