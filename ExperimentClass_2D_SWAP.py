@@ -55,15 +55,14 @@ class EH_SWAP:
 					with for_(*from_array(da, ff_sweep_rel)):
 						play("pi", machine.qubits[qubit_index].name)
 						align()
-						play("const" * amp(da), machine.flux_lines[qubit_index].name, duration=t)
+						play("const" * amp(da), machine.flux_lines[qubit_index].name, duration = t) # in clock cycle!
 						align()
 						readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 						align()
-						wait(50)
-						play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration=t)
+						play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration = t) 
+						wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 						save(I, I_st)
 						save(Q, Q_st)
-						wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -76,7 +75,7 @@ class EH_SWAP:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		
+
 		if to_simulate:
 			simulation_config = SimulationConfig(duration = simulation_len)
 			job = self.qmm.simulate(config, iswap, simulation_config)
@@ -88,7 +87,7 @@ class EH_SWAP:
 			job = qm.execute(iswap)
 			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
 
-			if final_plot:
+			if live_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8,4]
 				interrupt_on_close(fig, job)
@@ -100,37 +99,43 @@ class EH_SWAP:
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				# progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				time.sleep(0.1)
-
-				if final_plot:
+				
+				if live_plot:
 					plt.cla()
-					plt.pcolor(ff_sweep_abs, tau_sweep_abs, np.sqrt(I**2 + Q**2), cmap="seismic")
-					plt.colorbar()
+
+					if data_process_method is 'Phase':
+						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), cmap="seismic")
+					elif data_process_method is 'Amplitude':
+						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.abs(I + 1j * Q), cmap="seismic")
+					elif data_process_method is 'I':
+						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, I, cmap="seismic")
+
 					plt.title("SWAP Spectroscopy")
-					plt.xlabel("Fast Flux(V)")
-					plt.ylabel("Interaction Time (ns)")
+					plt.xlabel("Fast Flux [V]")
+					plt.ylabel("Interaction Time [ns]")
+					plt.show()
+					plt.plot(0.5)
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
-			I, Q, _ = results.fetch_all()
+			I, Q, iteration = results.fetch_all()
+			# Convert I & Q to Volts
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			# sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			# sig_phase = np.angle(I + 1j * Q)
-
+			
 			# generate xarray dataset
 			expt_dataset = xr.Dataset(
 			    {
-			        "I": (["y", "x"], I),
-			        "Q": (["y", "x"], Q),
+			        "I": (["x", "y"], I),
+			        "Q": (["x", "y"], Q),
 			    },
 			    coords={
 			        "Fast_Flux": (["x"], ff_sweep_abs),
-			        "Time": (["y"], tau_sweep_abs),
+			        "Flux_Time": (["y"], tau_sweep_abs),
 			    },
 			)
 			
-			expt_name = 'SWAP2D'
+			expt_name = 'swap2D'
 			expt_long_name = 'SWAP Spectroscopy'
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = [] # use t0, t1, t2, ...
@@ -139,26 +144,28 @@ class EH_SWAP:
 		with for_(*from_array(da, ff_sweep_rel)):
 			play("pi", machine.qubits[qubit_index].name)
 			align()
-			play("const" * amp(da), machine.flux_lines[qubit_index].name, duration=t)
+			play("const" * amp(da), machine.flux_lines[qubit_index].name, duration = t) # in clock cycle!
 			align()
 			readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 			align()
-			wait(50)
-			play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration=t)
+			play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration = t) 
+			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 			save(I, I_st)
 			save(Q, Q_st)
-			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
 			# save data
 			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
 
 			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
-				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
-				sig_amp.plot()
+				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
 
-		return machine, expt_dataset
+			return machine, expt_dataset
+
 
 	def swap_fine(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True):
 		"""
