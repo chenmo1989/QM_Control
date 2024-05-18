@@ -27,9 +27,11 @@ class EH_1D:
 		self.qmm = ref_to_qmm
 
 	def res_freq(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, fig = None):
-		"""[summary]
+		"""Run resonator spectroscopy (1D)
 		
-		[description]
+		This experiment is designed to work with `self.res_freq_analysis` to find the resonance frequency by localizing the minima in pulsed transmission signal.
+		Result is not automatically saved.
+		This function (instead of the standard 1D resonator spectroscopy `rr_freq`) to avoid constructing the xarray dataset, which will be not so straightforward to assemble them further. But this could be done in the future.
 		
 		Args:
 			machine ([type]): [description]
@@ -39,29 +41,14 @@ class EH_1D:
 			cd_time ([type]): [description]
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `3000`)
-			fig ([type]): [description] (default: `None`)
+			fig ([type]): Fig reference, mainly to have the ability to interupt the experiment. (default: `None`)
 		
 		Returns:
-			[type]: [description]
-		"""
-		"""
-		resonator spectroscopy experiment
-		this experiment find the resonance frequency by localizing the minima in pulsed transmission signal.
-		this 1D experiment is not automatically saved
-		Args:
-		:param machine
-		:param res_freq_sweep: 1D array for resonator frequency sweep
-		:param qubit_index:
-		:param n_avg: repetition of expeirment
-		:param cd_time: cooldown time between subsequent experiments
-		:param to_simulate: True-run simulation; False (default)-run experiment.
-		:param simulation_len: Length of the sequence to simulate. In clock cycles (4ns).
-		:param fig: None (default). Fig reference, mainly to have the ability to interupt the experiment.
-		Return:
 			machine
 			I
 			Q
 		"""
+
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
 		if res_lo < 2E9:
@@ -125,25 +112,30 @@ class EH_1D:
 
 
 	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, fig = None):
-		"""
-		qubit spectroscopy experiment in 1D (equivalent of ESR for spin qubit)
-		this 1D experiment is not automatically saved
+		"""Run 1D qubit spectroscopy.
+		
+		Result is not automatically saved.
+		This function (instead of the standard 1D qubit spectroscopy `qubit_freq`) to avoid constructing the xarray dataset, which will be not so straightforward to assemble them further. But this could be done in the future.
+		
+		
 		Args:
-		:param machine
-		:param qubit_freq_sweep: 1D array of qubit frequency sweep
-		:param qubit_index:
-		:param n_avg: repetition of the experiments
-		:param cd_time: cooldown time between subsequent experiments
-		:param ff_amp: fast flux amplitude the overlaps with the Rabi pulse. The ff pulse is 40ns longer than Rabi pulse, and share the same center time.
-		:param machine:
-		:param to_simulate: True-run simulation; False (default)-run experiment.
-		:param simulation_len: Length of the sequence to simulate. In clock cycles (4ns).
-		:param fig: None (default). Fig reference, mainly to have the ability to interupt the experiment.
-		Return:
+			machine ([type]): [description]
+			qubit_freq_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			ff_amp (number): [description] (default: `0.0`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `20E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			fig ([type]): Fig reference, mainly to have the ability to interupt the experiment. (default: `None`)
+		
+		Returns:
 			machine
 			I
 			Q
 		"""
+
+
 		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
 
 		if qubit_lo < 2E9:
@@ -219,15 +211,20 @@ class EH_1D:
 
 
 	def res_freq_analysis(self, res_freq_sweep, I, Q, data_process_method = 'Amplitude'):
-		"""
-		analysis for the 1D resonator spectroscopy experiment, and find the resonance frequency by looking for the minima
+		"""Analysis for the 1D resonator spectroscopy experiment.
+		
+		Designed to work with `self.res_freq`. Take the data, identify the minimal of data Amplitude, and return the corresponding frequency.
+		
 		Args:
-			res_freq_sweep: resonator frequency array
-			I: corresponding signal I array
-			Q: corresponding signal Q array
-		Return:
-			 res_freq_sweep[idx]: the resonance frequency
+			res_freq_sweep ([type]): [description]
+			I ([type]): [description]
+			Q ([type]): [description]
+			data_process_method (str): [description] (default: `'Amplitude'`)
+		
+		Returns:
+			res_freq (np.float64??)
 		"""
+
 
 		if data_process_method is 'Phase':
 			y = np.unwrap(np.angle(I + 1j * Q))
