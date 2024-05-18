@@ -9,7 +9,6 @@ from qualang_tools.plot import interrupt_on_close
 from qualang_tools.loops import from_array
 from qm.octave import QmOctaveConfig
 from quam import QuAM
-#from qutip import *
 from typing import Union
 from macros import *
 import warnings
@@ -20,13 +19,14 @@ import datetime
 import xarray as xr
 
 class EH_T1:
-	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
+		self.qmm = ref_to_qmm
 		
 
-	def qubit_T1(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def qubit_T1(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
 		"""Run Qubit T1 measurement.
 		
 		Currently at fixed 0 fast flux. 
@@ -41,6 +41,7 @@ class EH_T1:
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `1000`)
 			final_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key to be plotted. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			machine
@@ -61,7 +62,7 @@ class EH_T1:
 					play("pi", machine.qubits[qubit_index].name)
 					wait(tau, machine.qubits[qubit_index].name)
 					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -73,25 +74,25 @@ class EH_T1:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		# Simulate or execute #
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, t1_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, t1_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(t1_prog)
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 			# Live plotting
-			if final_plot is True:
+			if live_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [12, 8]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure    while results.is_processing():
+
 			while results.is_processing():
 				# Fetch results
 				I, Q, iteration = results.fetch_all()
@@ -101,12 +102,20 @@ class EH_T1:
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 				#time.sleep(0.05)
 
-				if final_plot:
+				if live_plot:
 					plt.cla()
 					plt.title("T1")
-					plt.plot(tau_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					if data_process_method is 'Phase':
+						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method is 'Amplitude':
+						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method is 'I':
+						plt.plot(tau_sweep_abs, I, ".")
+						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("tau [ns]")
-					plt.ylabel("Signal Amplitude [V]")
+					plt.pause(0.5)
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
@@ -121,7 +130,7 @@ class EH_T1:
 			        "Q": (["x"], Q),
 			    },
 			    coords={
-			        "Relaxation Time": (["x"], tau_sweep_abs),
+			        "Relaxation_Time": (["x"], tau_sweep_abs),
 			    },
 			)
 			
@@ -134,7 +143,7 @@ with for_(*from_array(tau, tau_sweep)):
 	play("pi", machine.qubits[qubit_index].name)
 	wait(tau, machine.qubits[qubit_index].name)
 	align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
-	readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+	readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 	save(I, I_st)
 	save(Q, Q_st)
 	wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -144,14 +153,16 @@ save(n, n_st)"""
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
 
 			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
-				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
-				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
 
-	def TLS_T1(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def TLS_T1(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		TLS T1 using SWAP with the transmon to prepare the excited state
 		sequence is qubit pi - SWAP - wait - SWAP - qubit readout
@@ -207,7 +218,7 @@ save(n, n_st)"""
 					wait(tau, machine.flux_lines[qubit_index].name)
 					square_TLS_swap[0].run()
 					align()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					align()
@@ -224,16 +235,15 @@ save(n, n_st)"""
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		# Simulate or execute #
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, t1_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, t1_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(t1_prog)
 			# Get results from QUA program
@@ -273,7 +283,7 @@ save(n, n_st)"""
 		return machine, expt_dataset
 
 
-	def TLS_T1_driving(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def TLS_T1_driving(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		TLS T1 using direct TLS driving to prepare the excited state
 		sequence is TLS pi - wait - SWAP - qubit readout
@@ -339,7 +349,7 @@ save(n, n_st)"""
 					align()
 					square_TLS_swap[0].run()
 					align()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					align()
@@ -354,17 +364,16 @@ save(n, n_st)"""
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		# Simulate or execute #
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, t1_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, t1_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(t1_prog)
 			# Get results from QUA program

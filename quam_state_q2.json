@@ -38,7 +38,7 @@
   "resonators[].name": ["r2"],
   "resonators[].f_readout": [7003928309.0],
   "resonators[].depletion_time": [10000],
-  "resonators[].readout_pulse_amp": [0.3],
+  "resonators[].readout_pulse_amp": [0.5],
   "resonators[].readout_pulse_length": [500],
   "resonators[].optimal_pulse_length": [2000],
   "resonators[].rotation_angle": [0.0],

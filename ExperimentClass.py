@@ -16,13 +16,16 @@ from ExperimentClass_2D import EH_exp2D
 from ExperimentClass_Labber import EH_Labber
 from ExperimentClass_Octave import EH_Octave
 from DataLoggingClass import DataLoggingHandle
+from qm import QuantumMachinesManager
+from configuration import octave_config
 
 class ExperimentHandle:
-	def __init__(self):
+	def __init__(self, machine):
+		self.qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level='ERROR')
 		self.set_Labber = EH_Labber()
-		self.set_octave = EH_Octave()
+		self.set_octave = EH_Octave(self.qmm)
 		self.datalogs = DataLoggingHandle()
-		self.exp1D = EH_exp1D(self.set_octave,self.set_Labber,self.datalogs)
-		self.exp2D = EH_exp2D(self.set_octave,self.set_Labber,self.datalogs)
+		self.exp1D = EH_exp1D(self.set_octave,self.set_Labber,self.datalogs, self.qmm)
+		self.exp2D = EH_exp2D(self.set_octave,self.set_Labber,self.datalogs, self.qmm)
 		
 

@@ -6,17 +6,83 @@ All the macros below have been written and tested with the basic configuration. 
 
 from qm.qua import *
 from scipy import optimize
-#from qutip import *
+import qutip as qt
 import matplotlib.pyplot as plt
 import numpy as np
 from qualang_tools.loops import from_array
 from configuration import u
 import time
+import xarray as xr
+
+
+##############
+# Auxiliary macros 
+##############
+
+
+def ham(dc_flux, wr, Ec, Ej, c, phi0, g, output_flag=1):
+    """
+	The Jaynes-Cummings Hamiltonian, all in units of MHz
+	Args:
+		dc_flux: dc flux voltage values
+		wr: bare resonator frequency
+		Ec: capacitive energy of qubit
+		Ej: Josephson energy of qubit
+		c, phi0: linear coefficient for the mapping between dc voltage and flux, following
+			magnetic flux = 2 * np.pi * c * dc_flux + phi0
+		output_flag: 1-rr, 2-qubit, otherwise-pass
+	Return:
+		freq_sys: frequency of the system, with the system being either resonator or qubit
+	"""
+
+    N = 4  # 0-3 photons
+    a = qt.tensor(qt.destroy(N), qt.qeye(N))  # cavity mode
+    b = qt.tensor(qt.qeye(N), qt.destroy(N))  # qubit
+
+    freq_sys = []  # initialize an empty list
+
+    # Hamiltonian as a function of flux
+    for k in range(np.size(dc_flux)):
+        H = wr * a.dag() * a + (np.sqrt(8 * Ec * Ej * np.abs(
+            np.cos(phi_flux_rr(dc_flux[k], c,
+                                    phi0)))) - Ec) * b.dag() * b - Ec / 2 * b.dag() * b.dag() * b * b + g * (
+                    a * b.dag() + a.dag() * b)
+        w, v = H.eigenstates()  # eigenenergies and states. Already normalized.
+
+        # find the eigenstate with the largest component at corresponding positions. This will be the dominant desired state.
+        idx_00 = np.argmax([np.abs(state[0]) for state in v])  # |0,0>
+        idx_01 = np.argmax([np.abs(state[N]) for state in v])  # |1,0> photon
+        idx_02 = np.argmax([np.abs(state[1]) for state in v])  # |0,1> qubit
+        if output_flag == 1:
+            freq_sys.append(np.abs(np.maximum(w[idx_01], w[idx_02]) - w[idx_00]))
+        elif output_flag == 2:
+            freq_sys.append(np.abs(np.minimum(w[idx_01], w[idx_02]) - w[idx_00]))
+        else:
+            pass
+    freq_sys = np.array(freq_sys)
+
+    return freq_sys
+
+
+def phi_flux_rr(dc_flux, c, phi0):
+    """
+    linear mapping function from dc flux voltage to dc magnetic flux
+    magnetic flux = 2 * np.pi * c * dc_flux + phi0
+    Args:
+        dc_flux: the voltage we apply in experiment (QDAC)
+        c: slope
+        phi0: offset
+    Return:
+        the magnetic flux
+    """
+    return 2 * np.pi * c * dc_flux + phi0
 
 
 ##############
 # QUA macros #
 ##############
+
+
 def wait_until_job_is_paused(current_job):
     """
     Waits until the OPX FPGA reaches the pause statement.
@@ -28,6 +94,7 @@ def wait_until_job_is_paused(current_job):
         time.sleep(0.01)
         pass
     return True
+
 
 def reset_qubit(method, **kwargs):
     """
@@ -146,6 +213,7 @@ def readout_macro(res_name: str, threshold=None, state=None, I=None, Q=None):
     # return state, I, Q
     return I, Q
 
+
 def declare_vars(I=None, Q=None, n=None, I_st=None, Q_st=None, n_st=None):
     if I is None:
         I = declare(fixed)
@@ -161,6 +229,7 @@ def declare_vars(I=None, Q=None, n=None, I_st=None, Q_st=None, n_st=None):
         n_st = declare_stream()
     return [I,Q,n,I_st,Q_st,n_st]
 
+
 def readout_avg_macro(res_name: str, I=None, Q=None, I_st=None, Q_st=None):
     """
     A macro for performing the readout over averages
@@ -174,6 +243,7 @@ def readout_avg_macro(res_name: str, I=None, Q=None, I_st=None, Q_st=None):
         dual_demod.full("minus_sin", "out1", "cos", "out2", Q),
     )
     return I, Q
+
 
 def readout_rotated_macro(res_name: str, I=None, Q=None, I_st=None, Q_st=None):
     """
@@ -192,61 +262,7 @@ def readout_rotated_macro(res_name: str, I=None, Q=None, I_st=None, Q_st=None):
     return I, Q
 
 
-def ham(dc_flux, wr, Ec, Ej, c, phi0, g, output_flag):
-    """
-	The Jaynes-Cummings Hamiltonian, all in units of MHz
-	Args:
-		dc_flux: dc flux voltage values
-		wr: bare resonator frequency
-		Ec: capacitive energy of qubit
-		Ej: Josephson energy of qubit
-		c, phi0: linear coefficient for the mapping between dc voltage and flux, following
-			magnetic flux = 2 * np.pi * c * dc_flux + phi0
-		output_flag: 1-rr, 2-qubit, otherwise-pass
-	Return:
-		freq_sys: frequency of the system, with the system being either resonator or qubit
-	"""
-    N = 4  # 0-3 photons
-    a = tensor(destroy(N), qeye(N))  # cavity mode
-    b = tensor(qeye(N), destroy(N))  # qubit
-    freq_sys = []
 
-    # Hamiltonian as a function of flux
-    for dc_value in dc_flux:
-        H = wr * a.dag() * a + (np.sqrt(8 * Ec * Ej * np.abs(
-            np.cos(phi_flux_rr(dc_value, c,
-                                    phi0)))) - Ec) * b.dag() * b - Ec / 2 * b.dag() * b.dag() * b * b + g * (
-                    a * b.dag() + a.dag() * b)
-        w, v = np.linalg.eig(H)
-
-        for n_1 in range(v.shape[1]):
-            v[:, n_1] = v[:, n_1] / np.inner(v[:, n_1], v[:, n_1])
-
-            idx_00 = np.argmax(np.abs(v[0, :]))  # |0,0>
-            idx_01 = np.argmax(np.abs(v[N, :]))  # |1,0> photon
-            idx_02 = np.argmax(np.abs(v[1, :]))  # |0,1> qubit
-        if output_flag == 1:
-            freq_sys.append(np.abs(np.maximum(w[idx_01], w[idx_02]) - w[idx_00]))
-        elif output_flag == 2:
-            freq_sys.append(np.abs(np.minimum(w[idx_01], w[idx_02]) - w[idx_00]))
-        else:
-            pass
-    freq_sys = np.array(freq_sys)
-    return freq_sys
-
-
-def phi_flux_rr(dc_flux, c, phi0):
-    """
-	linear mapping function from dc flux voltage to dc magnetic flux
-	magnetic flux = 2 * np.pi * c * dc_flux + phi0
-	Args:
-		dc_flux: the voltage we apply in experiment (QDAC)
-		c: slope
-		phi0: offset
-	Return:
-		the magnetic flux
-	"""
-    return 2 * np.pi * c * dc_flux + phi0
 
 # Frequency tracking class
 class qubit_frequency_tracking:

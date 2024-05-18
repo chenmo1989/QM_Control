@@ -18,8 +18,8 @@ class EH_Octave:
 	Methods (useful ones):
 		
 	"""
-	def __init__(self):
-		pass
+	def __init__(self, ref_to_qmm):
+		self.qmm = ref_to_qmm
 		
 
 	def set_clock(self, machine, external_clock = True):
@@ -27,9 +27,8 @@ class EH_Octave:
 		should set the octave clock to external 10MHz. Note this is automatically run at the initialization of ExperimentClass
 		:return:
 		"""
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		config = build_config(machine)
-		qm = qmm.open_qm(config)
+		qm = self.qmm.open_qm(config)
 
 		# Clock settings #
 		if external_clock:
@@ -55,12 +54,8 @@ class EH_Octave:
 		
 		:return: machine
 		"""
-		if log_flag:
-			qmm = QuantumMachinesManager(host=machine.network.qop_ip, port=None, cluster_name=machine.network.cluster_name, octave = octave_config)
-		else:
-			qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		config = build_config(machine)
-		qm = qmm.open_qm(config)
+		qm = self.qmm.open_qm(config)
 
 		qubits = [machine.qubits[qubit_index].name]
 		resonators = [machine.resonators[qubit_index].name]
@@ -103,8 +98,6 @@ class EH_Octave:
 
 		:return: machine; should take it!
 		"""
-		#qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-		#qm = qmm.open_qm(config)
 		
 		# Set delay, including machine
 			# note delay is defined directly for Octave
@@ -128,8 +121,6 @@ class EH_Octave:
 
 		:return: machine; should take it!
 		"""
-		#qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-		#qm = qmm.open_qm(config)
 		
 		# Set buffer, including machine
 			# note buffer is defined directly for Octave
@@ -156,9 +147,6 @@ class EH_Octave:
 		"""
 		machine.octaves[octave_index].LO_sources[LO_channel].LO_frequency = LO_frequency
 
-		# this will open a quantum machine and apply the settings
-		#qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-		#qm = qmm.open_qm(config) 
 		return machine
 
 
@@ -179,9 +167,6 @@ class EH_Octave:
 
 		machine.octaves[octave_index].LO_sources[LO_channel].output_mode = rf_output_mode
 
-		# this will open a quantum machine and apply the settings
-		#qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-		#qm = qmm.open_qm(config) 
 		return machine
 
 

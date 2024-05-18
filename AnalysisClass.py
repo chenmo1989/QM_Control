@@ -27,12 +27,13 @@ from AnalysisClass_2D import AH_exp2D
 
 class AnalysisHandle:
 	def __init__(self, json_name):
-		self.exp1D = AH_exp1D()
-		self.exp2D = AH_exp2D()
 		# for updated values
 		self.ham_param = []
 		self.poly_param = []
 		self.json_name = json_name
+		self.exp1D = AH_exp1D(self.ham_param, self.poly_param, self.json_name)
+		self.exp2D = AH_exp2D(self.ham_param, self.poly_param, self.json_name, self.exp1D)
+		
 
 	def get_machine(self):
 		machine = QuAM(self.json_name)
@@ -55,11 +56,15 @@ class AnalysisHandle:
 		return machine
 
 	def update_machine_res_frequency(self,machine,qubit_index,new_freq):
-		machine.resonators[qubit_index].f_readout = new_freq
+		machine.resonators[qubit_index].f_readout = new_freq + 0E6
 		return machine
 
 	def update_machine_res_frequency_rel(self,machine,qubit_index,new_freq):
-		machine.resonators[qubit_index].f_readout += new_freq
+		machine.resonators[qubit_index].f_readout += new_freq + 0E6
+		return machine
+
+	def update_machine_res_frequency_sweet_spot(self, machine, qubit_index, dc_flux_index):
+		machine.resonators[qubit_index].f_readout = int(self.exp2D.ham([machine.dc_flux[dc_flux_index].max_frequency_point], *machine.resonators[qubit_index].tuning_curve, output_flag = 1).item()) * 1E6 + 0E6
 		return machine
 
 	def update_analysis_tuning_curve(self,qubit_index,ham_param = None, poly_param = None,is_DC_curve = False):
@@ -79,7 +84,7 @@ class AnalysisHandle:
 			print("polynomial order > 2")
 			return None
 		else:
-			return -poly_param[1]/2/poly_param[0]
+			return -(poly_param[1]/2/poly_param[0])
 
 
 

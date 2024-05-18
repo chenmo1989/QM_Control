@@ -1,8 +1,49 @@
+from qm.qua import *
+from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
+from qm.octave import *
+from configuration import *
+from scipy import signal
+from qualang_tools.bakery import baking
+from qualang_tools.results import progress_counter, fetching_tool
+from qualang_tools.plot import interrupt_on_close
+from qualang_tools.loops import from_array
+from qm.octave import QmOctaveConfig
+from quam import QuAM
+#from qutip import *
+from typing import Union
+from macros import *
+import warnings
+import json
+import matplotlib.pyplot as plt
+import numpy as np
+import datetime
+import time
+
 class EH_1D:
 	"""
 	class for some 1D experiments used for 2D scans
 	"""
-	def res_freq(self, machine, res_freq_sweep, qubit_index, n_avg, cd_time, to_simulate = False, simulation_len = 1000, fig = None):
+	def __init__(self, ref_to_qmm):
+		self.qmm = ref_to_qmm
+
+	def res_freq(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, fig = None):
+		"""[summary]
+		
+		[description]
+		
+		Args:
+			machine ([type]): [description]
+			res_freq_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg ([type]): [description]
+			cd_time ([type]): [description]
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			fig ([type]): [description] (default: `None`)
+		
+		Returns:
+			[type]: [description]
+		"""
 		"""
 		resonator spectroscopy experiment
 		this experiment find the resonance frequency by localizing the minima in pulsed transmission signal.
@@ -40,7 +81,7 @@ class EH_1D:
 			with for_(n, 0, n < n_avg, n+1):
 				with for_(*from_array(df,res_if_sweep)):
 					update_frequency(machine.resonators[qubit_index].name, df)
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
@@ -54,31 +95,25 @@ class EH_1D:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-		# Simulate or execute #
+				# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, rr_freq_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, rr_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None, None
+
 		else:
-			qm = qmm.open_qm(config)
-			timestamp_created = datetime.datetime.now()
+			qm = self.qmm.open_qm(config)
 			job = qm.execute(rr_freq_prog)
 			# Get results from QUA program
-			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
-			# Live plotting
-		    #%matplotlib qt
+			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode = "live") # wait for all (default), rather than live mode
+
 			if fig is not None:
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
 
 			while results.is_processing():
 				# Fetch results
-				I, Q, iteration = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				# progress bar
-				#progress_counter(iteration, n_avg, start_time=results.get_start_time())
+				plt.pause(0.5)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
@@ -88,7 +123,8 @@ class EH_1D:
 
 			return machine, I, Q
 
-	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, fig = None):
+
+	def qubit_freq(self, machine, qubit_freq_sweep, qubit_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, fig = None):
 		"""
 		qubit spectroscopy experiment in 1D (equivalent of ESR for spin qubit)
 		this 1D experiment is not automatically saved
@@ -118,8 +154,8 @@ class EH_1D:
 		qubit_if_sweep = np.floor(qubit_if_sweep)
 		ff_duration = machine.qubits[qubit_index].pi_length + 40
 
-		if np.max(abs(qubit_if_sweep)) > 4000E6: # check if parameters are within hardware limit
-			print("qubit if range > 4000MHz")
+		if np.max(abs(qubit_if_sweep)) > 400E6: # check if parameters are within hardware limit
+			print("qubit if range > 400MHz")
 			return machine, None, None
 
 		with program() as qubit_freq_prog:
@@ -131,13 +167,13 @@ class EH_1D:
 					update_frequency(machine.qubits[qubit_index].name, df)
 					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 					wait(5, machine.qubits[qubit_index].name)
-					play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+					play('pi', machine.qubits[qubit_index].name)
+					wait(5, machine.qubits[qubit_index].name)
+		
 					align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
 						  machine.resonators[qubit_index].name)
-					#wait(4) # avoid overlap between Z and RO
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					align()
-					wait(50)
 					# eliminate charge accumulation
 					play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -153,31 +189,25 @@ class EH_1D:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
+				
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, qubit_freq_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, qubit_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(qubit_freq_prog)
 			# Get results from QUA program
-			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
-			# Live plotting
-		    #%matplotlib qt
+			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode = "live") # wait for all (default), rather than live mode
+
 			if fig is not None:
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
+			
 			while results.is_processing():
-				time.sleep(0.1)
-				# Fetch results
-				# I, Q, iteration = results.fetch_all()
-				# I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
-				# Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				# progress bar
-				# progress_counter(iteration, n_avg, start_time=results.get_start_time())
+				plt.pause(0.5)
 
 			# fetch all data after live-updating
 			I, Q, iteration = results.fetch_all()
@@ -187,7 +217,8 @@ class EH_1D:
 
 			return machine, I, Q
 
-	def res_freq_analysis(self,res_freq_sweep, I, Q):
+
+	def res_freq_analysis(self, res_freq_sweep, I, Q, data_process_method = 'Amplitude'):
 		"""
 		analysis for the 1D resonator spectroscopy experiment, and find the resonance frequency by looking for the minima
 		Args:
@@ -197,6 +228,14 @@ class EH_1D:
 		Return:
 			 res_freq_sweep[idx]: the resonance frequency
 		"""
-		sig_amp = np.sqrt(I ** 2 + Q ** 2)
-		idx = np.argmin(sig_amp)  # find minimum
+
+		if data_process_method is 'Phase':
+			y = np.unwrap(np.angle(I + 1j * Q))
+		elif data_process_method is 'Amplitude':
+			y = np.abs(I + 1j * Q)
+		elif data_process_method is 'I':
+			y = I
+
+		idx = np.argmin(y)  # find minimum
+
 		return res_freq_sweep[idx]

@@ -36,8 +36,10 @@ class AH_exp1D:
 		rr_freq(self, res_freq_sweep, sig_amp)
 	"""
 
-	def __init__(self):
-		pass
+	def __init__(self, ref_to_ham_param, ref_to_poly_param, ref_to_json_name):
+		self.ham_param = ref_to_ham_param
+		self.poly_param = ref_to_poly_param
+		self.json_name = ref_to_json_name
 
 
 	def time_of_flight(self, expt_dataset):
@@ -115,7 +117,7 @@ class AH_exp1D:
 		return dc_offset_i.item(), dc_offset_q.item(), delay.item()
 
 
-	def rr_freq(self, expt_dataset, to_plot = True):
+	def rr_freq(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
 		"""Find resonator frequency
 		
 		Analysis for 1D resonator spectroscopy experiment. 
@@ -125,16 +127,22 @@ class AH_exp1D:
 		Args:
 			expt_dataset ([type]): [description]
 			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			res_freq: [description]
 		"""
 
-		sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
-		coord_key = list(expt_dataset.coords.keys())[0]
-		idx = np.argmin(sig_amp.values)  # find minimum
-		
-		res_freq = sig_amp.coords[coord_key][idx].item() # .item() done here!
+		y = expt_dataset[data_process_method].values
+
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		argmin_freq = y.argmin()
+		res_freq = expt_dataset[coord_key_x].isel(x=argmin_freq).values.item()  # .item() done here!
 
 		print(f"resonator frequency: {res_freq / u.MHz:.3f} MHz")
 
@@ -142,12 +150,21 @@ class AH_exp1D:
 			fig = plt.figure()
 			plt.rcParams['figure.figsize'] = [6, 3]
 			plt.cla()
-			sig_amp.plot(x=coord_key, marker = '.')
+			expt_dataset[data_process_method].plot(x=coord_key_x, marker = '.')
 			plt.axvline(x=(res_freq))
-
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Signal [V]")
+			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+			if data_process_method is 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method is 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method is 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method is 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method is 'SNR':
+				plt.ylabel("SNR")
 
 		return res_freq
 
@@ -167,18 +184,16 @@ class AH_exp1D:
 			res_freq: [description]
 		"""
 
-		coord_key = list(expt_dataset.coords.keys())[0]
-		
-		x = expt_dataset.coords[coord_key].values
+		y = expt_dataset.Phase_g - expt_dataset.Phase_e
 
-		y_g = np.unwrap(np.angle(expt_dataset.Ig + 1j * expt_dataset.Qg))
-		y_e = np.unwrap(np.angle(expt_dataset.Ie + 1j * expt_dataset.Qe))
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
 
-		y = y_e - y_g
-
-		idx = np.argmax(y)  # find minimum
-		
-		res_freq = expt_dataset.coords[coord_key][idx].item() # .item() done here!
+		argmin_freq = y.argmin()
+		res_freq = expt_dataset[coord_key_x].isel(x=argmin_freq).values.item() # .item() done here!
 
 		print(f"resonator frequency: {res_freq / u.MHz:.3f} MHz")
 
@@ -186,17 +201,14 @@ class AH_exp1D:
 			fig = plt.figure()
 			plt.rcParams['figure.figsize'] = [6, 3]
 			plt.cla()
-			plt.plot(x, y, '.')
+			y.plot(x=coord_key_x, marker = '.')
 			plt.axvline(x=(res_freq))
-
-			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Phase [V]")
+			plt.ylabel("Phase [rad]")
 
 		return res_freq
 
 
-	def peak_fit(self, expt_dataset, method = "Lorentzian", to_plot = True, SNR = False):
+	def peak_fit(self, expt_dataset, method = "Lorentzian", to_plot = True, data_process_method = 'Amplitude'):
 		"""Fit data to a peak with lineshape defined by method
 		
 		Mainly for spectroscopy experiments. Using lmfit to fit.
@@ -208,19 +220,21 @@ class AH_exp1D:
 			expt_dataset ([type]): [description]
 			method (str): [description] (default: `"Lorentzian"`)
 			to_plot (bool): [description] (default: `True`)
-			SNR (bool): if fitting to SNR (single-shot calibrations). (default: `False')
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			[type]: [description]
 		"""
 
-		if SNR is True:
-			sig_amp = expt_dataset.SNR
-		else:
-			sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
-		coord_key = list(expt_dataset.coords.keys())[0]
-		y = sig_amp.values
-		x = sig_amp.coords[coord_key].values
+		y = expt_dataset[data_process_method].values
+
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		x = expt_dataset.coords[coord_key_x].values
 
 		if method == "Lorentzian":
 			mod = lmfit.models.LorentzianModel()
@@ -239,62 +253,6 @@ class AH_exp1D:
 		pars['slope'].set(value = 0, vary = False) # flat background offset
 
 		out = mod.fit(y, pars, x = x)
-
-		qubit_freq = out.params['center'].value
-
-		print(f"resonant frequency: {qubit_freq / u.MHz: .1f} [MHz]")
-
-		if to_plot:
-			fig = plt.figure()
-			plt.rcParams['figure.figsize'] = [6, 3]
-			plt.cla()
-			plt.plot(x, y, '.')
-			plt.plot(x, out.best_fit, 'r--')
-
-			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Signal [V]")
-
-		return int(qubit_freq.item())
-
-	def peak_fit_fidelity(self, expt_dataset, method="Gaussian", to_plot=True):
-		"""Fit data to a peak with lineshape defined by method
-
-		Mainly for single shot readout optimization. Using lmfit to fit.
-		Data must show a clear peak, otherwise the initial guess would not work well.
-		output float or int depending on the unit of the coord.
-		Todo: educated guess of the initial fitting parameters.
-
-		Args:
-			expt_dataset ([type]): [description]
-			method (str): [description] (default: `"Lorentzian"`)
-			to_plot (bool): [description] (default: `True`)
-			SNR (bool): if fitting to SNR (single-shot calibrations). (default: `False')
-
-		Returns:
-			[type]: [description]
-		"""
-		coord_key = list(expt_dataset.coords.keys())[0]
-		y = expt_dataset.Fidelity.values
-		x = expt_dataset.coords[coord_key].values
-
-		if method == "Lorentzian":
-			mod = lmfit.models.LorentzianModel()
-			pars_peak = mod.guess(y, x=x)
-		elif method == "Gaussian":
-			mod = lmfit.models.GaussianModel()
-			pars_peak = mod.guess(y, x=x)
-		else:
-			print('-' * 12 + 'model name (method) not defined ...')
-			return None
-
-		mod = mod + lmfit.models.LinearModel()
-		pars = mod.make_params()
-		for keys in pars_peak:
-			pars[keys] = pars_peak[keys]
-		pars['slope'].set(value=0, vary=False)  # flat background offset
-
-		out = mod.fit(y, pars, x=x)
 		peak_pos = out.params['center'].value
 
 		if to_plot:
@@ -305,21 +263,36 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Signal [V]")
+			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-		if expt_dataset.coords[coord_key].attrs['units'] == 'V':
-			print(f"peak voltage: {peak_pos: .3f} [V]")
+			if data_process_method is 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method is 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method is 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method is 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method is 'SNR':
+				plt.ylabel("SNR")
+
+			if expt_dataset.coords[coord_key_x].attrs['units'] == 'V':
+				print(f"peak voltage: {peak_pos: .3f} [V]")
+			elif expt_dataset.coords[coord_key_x].attrs['units'] == 'Hz':
+				print(f"peak frequency: {peak_pos / u.MHz: .1f} [MHz]")
+			elif expt_dataset.coords[coord_key_x].attrs['units'] == 'ns':
+				print(f"peak duration: {peak_pos: .0f} [ns]")
+
+		if expt_dataset.coords[coord_key_x].attrs['units'] == 'V':
 			return peak_pos.item()
-		elif expt_dataset.coords[coord_key].attrs['units'] == 'Hz':
-			print(f"peak frequency: {peak_pos / u.MHz: .1f} [MHz]")
+		elif expt_dataset.coords[coord_key_x].attrs['units'] == 'Hz':
 			return int(peak_pos.item())
-		elif expt_dataset.coords[coord_key].attrs['units'] == 'ns':
-			print(f"peak duration: {peak_pos: .0f} [ns]")
+		elif expt_dataset.coords[coord_key_x].attrs['units'] == 'ns':
 			return int(peak_pos.item())
 		else:
 			print("coordinate units not recognized.")
 			return None
+
 
 	def multi_peak_fit(self, expt_dataset, method = "Lorentzian", to_plot = True):
 		# place holder. Useful code block below
@@ -337,7 +310,7 @@ class AH_exp1D:
 		        params.update(pars)
 
 
-	def rabi_length(self, expt_dataset, method = "Sine", to_plot = True):
+	def rabi_length(self, expt_dataset, method = "Sine", to_plot = True, data_process_method = 'Amplitude'):
 		"""Find the pi pulse (both length and amplitude)
 		
 		By fitting the time (power) Rabi to a (decaying) sinusoidal wave, find the pi pulse length (amplitude).
@@ -347,26 +320,22 @@ class AH_exp1D:
 			expt_dataset ([type]): [description]
 			method (str): [description] (default: `"Sine"`)
 			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			rabi_pulse_length: although this could be the amplitude as well.
 		"""
 
-		"""
-		this function fits a single oscillatory curve to a cosine, typically used for a rabi oscillation
-		note x is in units of ns. The translation from clock cycle is already done in the output of ExperimentClass
-		:param x: x data--for time_rabi, it is ns not clock cycle!
-		:param y: y data
-		:param method: "time_rabi" (default), finds the pi pulse lengths, in ns; "power_rabi", finds the amp for pi pulse; "decaying_time_rabi", "decaying_power_rabi" will have an additional exp decay term
-		:param to_plot:
-		Return:
-			fitted pi pulse length
-		"""
 
-		sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
-		coord_key = list(expt_dataset.coords.keys())[0]
-		y = sig_amp.values
-		x = sig_amp.coords[coord_key].values
+		y = expt_dataset[data_process_method].values
+
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		x = expt_dataset.coords[coord_key_x].values
 
 		mod = lmfit.models.SineModel()
 		pars_sin = mod.guess(y - np.mean(y), x = x)
@@ -391,18 +360,6 @@ class AH_exp1D:
 			pars[keys] = pars_sin[keys]
 
 		out = mod.fit(y, pars, x = x)
-		
-		# find pi pulse	
-		rabi_pulse_length = (np.pi/2 - out.params['shift'].value) / out.params['frequency'].value
-		rabi_period = np.pi / out.params['frequency'].value
-
-		if rabi_pulse_length//rabi_period < 0:
-			rabi_pulse_length = rabi_pulse_length - rabi_period * (rabi_pulse_length//rabi_period)
-		if rabi_pulse_length < 5:
-			rabi_pulse_length += rabi_period
-
-		print(f"rabi_pi_pulse: {rabi_pulse_length:.1f} [{expt_dataset.coords[coord_key].attrs['units']}]")
-		print(f"pi period: {rabi_period:.2f} [{expt_dataset.coords[coord_key].attrs['units']}]")
 
 		if to_plot:
 			fig = plt.figure()
@@ -412,13 +369,45 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Signal [V]")
+			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-		return rabi_pulse_length.item()
+			if data_process_method is 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method is 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method is 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method is 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method is 'SNR':
+				plt.ylabel("SNR")
+
+		# find pi pulse
+		rabi_pulse_length = (np.pi / 2 - out.params['shift'].value) / out.params['frequency'].value
+		rabi_period = np.pi / out.params['frequency'].value
+
+		if expt_dataset.coords[coord_key_x].attrs['units'] == 'V': # find pulse amplitude
+			if rabi_pulse_length // rabi_period < 0:
+				rabi_pulse_length = rabi_pulse_length - rabi_period * (rabi_pulse_length // rabi_period)
+			if rabi_pulse_length < 0.005:
+				rabi_pulse_length += rabi_period
+			print(f"rabi_pi_amp: {rabi_pulse_length:.3f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			print(f"pi period: {rabi_period:.3f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			return rabi_pulse_length.item()
+		elif expt_dataset.coords[coord_key_x].attrs['units'] == 'ns':
+			if rabi_pulse_length // rabi_period < 0:
+				rabi_pulse_length = rabi_pulse_length - rabi_period * (rabi_pulse_length // rabi_period)
+			if rabi_pulse_length < 5:
+				rabi_pulse_length += rabi_period
+			print(f"rabi_pi_pulse: {rabi_pulse_length:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			print(f"pi period: {rabi_period:.2f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			return int(rabi_pulse_length.item())
+		else:
+			print("coordinate units not recognized.")
+			return None
 
 
-	def T1(self, expt_dataset, to_plot = True):
+	def T1(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
 		"""Fit to T1 relaxation curve.
 		
 		This function takes the amplitude in expt_dataset, fit it to a simple exponential model (with a constant offset), and returns the T1.
@@ -427,15 +416,22 @@ class AH_exp1D:
 		Args:
 			expt_dataset ([type]): [description]
 			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			qubit_T1 (int): Could directly pass to machine.
 		"""
 
-		sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
-		coord_key = list(expt_dataset.coords.keys())[0]
-		y = sig_amp.values
-		x = sig_amp.coords[coord_key].values
+
+		y = expt_dataset[data_process_method].values
+		
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		x = expt_dataset.coords[coord_key_x].values
 
 		mod = lmfit.models.ExponentialModel()
 		pars_decay = mod.guess(y - y[-1], x = x)
@@ -451,7 +447,7 @@ class AH_exp1D:
 
 		qubit_T1 = out.params['decay'].value
 		
-		print(f"Qubit T1: {qubit_T1:.1f} [{expt_dataset.coords[coord_key].attrs['units']}]")
+		print(f"Qubit T1: {qubit_T1:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 		
 		if to_plot:
 			fig = plt.figure()
@@ -461,13 +457,23 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Signal [V]")
+			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+			if data_process_method is 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method is 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method is 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method is 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method is 'SNR':
+				plt.ylabel("SNR")
 
 		return int(qubit_T1.item()) # json takes int
 
 
-	def ramsey(self, expt_dataset, to_plot = True):
+	def ramsey(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
 		"""Fit to ramsey experiment.
 		
 		Takes the amplitude of the signal, and fit it to a decaying sinusoidal model with a constant offset. 
@@ -479,15 +485,22 @@ class AH_exp1D:
 		Args:
 			expt_dataset ([type]): [description]
 			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			qubit_T2 (int): Could directly pass to machine.
 		"""
+
+
+		y = expt_dataset[data_process_method].values
 		
-		sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
-		coord_key = list(expt_dataset.coords.keys())[0]
-		y = sig_amp.values
-		x = sig_amp.coords[coord_key].values
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+		    	
+		x = expt_dataset.coords[coord_key_x].values
 
 		prefix = r"decay_"
 		mod = lmfit.models.SineModel() * lmfit.Model(self._stretched_exp, prefix = prefix) + lmfit.models.LinearModel()
@@ -518,10 +531,10 @@ class AH_exp1D:
 
 		qubit_T2 = out.params[prefix + "decay"].value
 		qubit_T2_exponent = out.params[prefix + "exponent"].value
-		qubit_detuning = out.params["frequency"].value
+		qubit_detuning = out.params["frequency"].value / (2*np.pi) # fit is to (2pi) GHz
 		print(f'Qubit T2*: {qubit_T2: .1f} [ns]')
 		print(f'Exponent n = {qubit_T2_exponent: .1f}')
-		print(f'Detuning = {qubit_detuning * 1E3: .1f} [MHz]') # fit is to GHz
+		print(f'Detuning = {qubit_detuning * 1E3: .1f} [MHz]')
 
 		if to_plot:
 			fig = plt.figure()
@@ -531,8 +544,18 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key} [{expt_dataset.coords[coord_key].attrs['units']}]")
-			plt.ylabel("Signal [V]")
+			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+			if data_process_method is 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method is 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method is 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method is 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method is 'SNR':
+				plt.ylabel("SNR")
 
 		return int(qubit_T2.item()) # json only takes int
 
@@ -566,10 +589,10 @@ class AH_exp1D:
 			ee - The matrix element indicating a state prepared in the excited state and measured in the excited state.
 		"""
 
-		Ig = expt_dataset.Ig.values
-		Qg = expt_dataset.Qg.values
-		Ie = expt_dataset.Ie.values
-		Qe = expt_dataset.Qe.values
+		Ig = expt_dataset.I_g.values
+		Qg = expt_dataset.Q_g.values
+		Ie = expt_dataset.I_e.values
+		Qe = expt_dataset.Q_e.values
 
 		# Condition to have the Q equal for both states:
 		angle = np.arctan2(np.mean(Qe) - np.mean(Qg), np.mean(Ig) - np.mean(Ie))

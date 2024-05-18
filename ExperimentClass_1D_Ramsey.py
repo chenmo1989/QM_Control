@@ -9,7 +9,6 @@ from qualang_tools.plot import interrupt_on_close
 from qualang_tools.loops import from_array
 from qm.octave import QmOctaveConfig
 from quam import QuAM
-#from qutip import *
 from typing import Union
 from macros import *
 import warnings
@@ -20,12 +19,13 @@ import datetime
 import xarray as xr
 
 class EH_Ramsey:
-	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
+		self.qmm = ref_to_qmm
 
-	def ramsey(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, detuning = 1E6, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def ramsey(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, detuning = 1E6, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
 		"""Run qubit ramsey experiment.
 		
 		Detuning realized by a virtual rotation on the phase of the second pi/2 pulse. 
@@ -41,6 +41,7 @@ class EH_Ramsey:
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `1000`)
 			final_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key to be plotted. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			machine
@@ -70,7 +71,7 @@ class EH_Ramsey:
 						frame_rotation_2pi(phase, machine.qubits[qubit_index].name)
 						play("pi2", machine.qubits[qubit_index].name)
 					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -84,21 +85,20 @@ class EH_Ramsey:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, ramsey_vr, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, ramsey_vr, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(ramsey_vr)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 
 			# Live plotting
-			if final_plot:
+			if live_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
@@ -112,13 +112,21 @@ class EH_Ramsey:
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 				#time.sleep(0.05)
 
-				if final_plot:
+				if live_plot:
 					plt.cla()
-					plt.title("T1")
 					plt.title(f"Ramsey with detuning = {detuning/1E6:.1f} MHz")
-					plt.plot(tau_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+
+					if data_process_method is 'Phase':
+						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method is 'Amplitude':
+						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method is 'I':
+						plt.plot(tau_sweep_abs, I, ".")
+						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Free Evolution Time [ns]")
-					plt.ylabel("Signal Amplitude [V]")
+					plt.pause(0.5)
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
@@ -133,7 +141,7 @@ class EH_Ramsey:
 			        "Q": (["x"], Q),
 			    },
 			    coords={
-			        "Free Evolution Time": (["x"], tau_sweep_abs),
+			        "Free_Evolution_Time": (["x"], tau_sweep_abs),
 			    },
 			)
 			
@@ -150,7 +158,7 @@ class EH_Ramsey:
 			frame_rotation_2pi(phase, machine.qubits[qubit_index].name)
 			play("pi2", machine.qubits[qubit_index].name)
 		align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
-		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 		save(I, I_st)
 		save(Q, Q_st)
 		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -161,14 +169,16 @@ class EH_Ramsey:
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
 
 			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
-				sig_amp = np.sqrt(expt_dataset.I**2 + expt_dataset.Q**2)
-				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
 
-	def TLS_ramsey(self, machine, ramsey_duration_sweep, qubit_index, TLS_index, n_avg = 1E3, detuning = 1E6, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def TLS_ramsey(self, machine, ramsey_duration_sweep, qubit_index, TLS_index, n_avg = 1E3, detuning = 1E6, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		TLS Ramsey in 1D. Detuning realized by tuning the phase of second pi/2 pulse
 		sequence given by pi/2 - wait - pi/2 for various wait times
@@ -241,7 +251,7 @@ class EH_Ramsey:
 						play("pi2_tls", machine.qubits[qubit_index].name)
 					align()
 					square_TLS_swap[0].run()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					align()
@@ -259,15 +269,14 @@ class EH_Ramsey:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, tls_ramsey, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, tls_ramsey, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_ramsey)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")

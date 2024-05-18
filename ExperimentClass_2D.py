@@ -43,12 +43,16 @@ class EH_exp2D:
 	Methods (useful ones):
 		RR: a class for running readout resonator related experiments
 	"""
-	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+
+
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
-		self.exp1D = EH_1D()
-		self.RR = EH_RR(self.exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
-		self.Rabi = EH_Rabi(self.exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
-		self.SWAP = EH_SWAP(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs)
-		#self.CPMG = EH_CPMG(ref_to_update_tPath,ref_to_update_str_datetime)
+		self.qmm = ref_to_qmm
+		self.exp1D = EH_1D(ref_to_qmm)
+		self.RR = EH_RR(self.exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm)
+		self.Rabi = EH_Rabi(self.exp1D, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm)
+		self.SWAP = EH_SWAP(ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm)
+
+

@@ -27,17 +27,18 @@ class EH_RR: # sub
 	"""
 	class in ExperimentHandle, for Readout Resonator (RR) related 1D experiments
 	Methods:
-		update_tPath
-		update_str_datetime
-		time_of_flight(self, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, to_simulate = False, simulation_len = 1000)
-		rr_freq(self, res_freq_sweep, qubit_index, n_avg, cd_time, tPath = None, f_str_datetime = None, to_simulate = False, simulation_len = 1000)
+		
 	"""
-	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+
+
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
+		self.qmm = ref_to_qmm
 
-	def time_of_flight(self, machine, qubit_index, n_avg = 5E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000):
+
+	def time_of_flight(self, machine, qubit_index, n_avg = 5E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000):
 		"""
 		time of flight 1D experiment
 		this experiment calibrates
@@ -84,14 +85,13 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level='ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, raw_trace_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, raw_trace_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(raw_trace_prog)
 
@@ -137,7 +137,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def rr_freq(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, readout_state = 'g', to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def rr_freq(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, readout_state = 'g', to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
 		"""Run resonator spectroscopy experiment.
 		
 		Pulsed resonator spectroscopy for either the qubit in the g(round)- or e(xcited)-state. 
@@ -153,6 +153,7 @@ class EH_RR: # sub
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `1000`)
 			final_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key to be plotted. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			[type]: [description]
@@ -185,7 +186,7 @@ class EH_RR: # sub
 						print("readout state does not exist")
 						return
 					update_frequency(machine.resonators[qubit_index].name, df)
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
@@ -199,15 +200,14 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, rr_freq_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, rr_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(rr_freq_prog)
 			# Get results from QUA program
@@ -230,10 +230,18 @@ class EH_RR: # sub
 				if live_plot:
 					plt.cla()
 					plt.title("Resonator spectroscopy")
-					plt.plot((res_freq_sweep) / u.MHz, np.sqrt(I**2 +  Q**2), ".")
+					if data_process_method is 'Phase':
+						plt.plot(res_freq_sweep, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method is 'Amplitude':
+						plt.plot(res_freq_sweep, np.abs(I + 1j * Q), ".")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method is 'I':
+						plt.plot(res_freq_sweep, I, ".")
+						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Frequency [MHz]")
-					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.1)
+					plt.pause(0.5)
+
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
@@ -249,7 +257,7 @@ class EH_RR: # sub
 					"Q": (["x"], Q),
 				},
 				coords={
-					"Readout Frequency": (["x"], res_freq_sweep),
+					"Readout_Frequency": (["x"], res_freq_sweep),
 				},
 			)
 			
@@ -274,7 +282,7 @@ class EH_RR: # sub
 			print("readout state does not exist")
 			return
 		update_frequency(machine.resonators[qubit_index].name, df)
-		readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+		readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 		save(I, I_st)
 		save(Q, Q_st)
@@ -289,13 +297,12 @@ class EH_RR: # sub
 					fig = plt.figure()
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
-				sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
-				sig_amp.plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 
 			return machine, expt_dataset
 
 
-	def rr_freq_ge(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def rr_freq_ge(self, machine, res_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Phase'):
 		"""Run resonator spectroscopy experiment for qubit in g and e.
 		
 		Pulsed resonator spectroscopy for both the qubit in the ground state, and then in the excited state. 
@@ -311,6 +318,7 @@ class EH_RR: # sub
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `1000`)
 			final_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key to be plotted. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
 			[type]: [description]
@@ -379,15 +387,14 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, rr_freq_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, rr_freq_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(rr_freq_prog)
 			# Get results from QUA program
@@ -412,12 +419,22 @@ class EH_RR: # sub
 				if live_plot:
 					plt.cla()
 					plt.title("Resonator spectroscopy")
-					plt.plot((res_freq_sweep) / u.MHz, np.sqrt(Ig**2 +  Qg**2), ".", label="Ground")
-					plt.plot((res_freq_sweep) / u.MHz, np.sqrt(Ie**2 +  Qe**2), ".", label="Excited")
+					if data_process_method is 'Phase':
+						plt.plot((res_freq_sweep) / u.MHz, np.unwrap(np.angle(Ig + 1j * Qg)), ".", label="Ground")
+						plt.plot((res_freq_sweep) / u.MHz, np.unwrap(np.angle(Ie + 1j * Qe)), ".", label="Excited")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method is 'Amplitude':
+						plt.plot((res_freq_sweep) / u.MHz, np.abs(Ig + 1j * Qg), ".", label="Ground")
+						plt.plot((res_freq_sweep) / u.MHz, np.abs(Ie + 1j * Qe), ".", label="Excited")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method is 'I':
+						plt.plot((res_freq_sweep) / u.MHz, Ig, ".", label="Ground")
+						plt.plot((res_freq_sweep) / u.MHz, Ie, ".", label="Excited")
+						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Frequency [MHz]")
-					plt.ylabel("Signal Amplitude [V]")
 					plt.legend(["Ground", "Excited"])
-					plt.pause(0.1)
+					plt.pause(0.5)
+
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
@@ -431,13 +448,13 @@ class EH_RR: # sub
 			# generate xarray dataset
 			expt_dataset = xr.Dataset(
 				{
-					"Ig": (["x"], Ig),
-					"Qg": (["x"], Qg),
-					"Ie": (["x"], Ie),
-					"Qe": (["x"], Qe),
+					"I_g": (["x"], Ig),
+					"Q_g": (["x"], Qg),
+					"I_e": (["x"], Ie),
+					"Q_e": (["x"], Qe),
 				},
 				coords={
-					"Readout Frequency": (["x"], res_freq_sweep),
+					"Readout_Frequency": (["x"], res_freq_sweep),
 				},
 			)
 			
@@ -485,16 +502,16 @@ class EH_RR: # sub
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				plt.title("Resonator spectroscopy")
-				plt.plot((res_freq_sweep) / u.MHz, np.sqrt(Ig**2 +  Qg**2), ".", label="Ground")
-				plt.plot((res_freq_sweep) / u.MHz, np.sqrt(Ie**2 +  Qe**2), ".", label="Excited")
-				plt.xlabel("Frequency [MHz]")
-				plt.ylabel("Signal Amplitude [V]")
-				plt.legend(["Ground", "Excited"])
+				for hlp in [r'_g',r'_e']:
+					plt.plot((res_freq_sweep) / u.MHz, expt_dataset[data_process_method + hlp].values, '.', label = hlp)
+					plt.xlabel("Frequency [MHz]")
+					plt.ylabel("Signal" + data_process_method)
+					plt.legend([r"_g", r"_e"])
 
 			return machine, expt_dataset
 
 
-	def rr_switch_delay(self, machine, rr_switch_delay_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def rr_switch_delay(self, machine, rr_switch_delay_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		1D experiment to calibrate switch delay for the resonator.
 
@@ -527,7 +544,7 @@ class EH_RR: # sub
 
 			with for_(n, 0, n < n_avg, n+1):
 				update_frequency(machine.resonators[qubit_index].name, res_if)
-				readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+				readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(I, I_st)
 				save(Q, Q_st)
@@ -539,11 +556,10 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, rr_switch_delay_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, rr_switch_delay_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
@@ -559,7 +575,7 @@ class EH_RR: # sub
 				machine = self.set_digital_delay(machine, "resonators", int(delay_value))
 				
 				config = build_config(machine)
-				qm = qmm.open_qm(config)
+				qm = self.qmm.open_qm(config)
 				timestamp_created = datetime.datetime.now()
 				job = qm.execute(rr_switch_delay_prog)
 				# Get results from QUA program
@@ -605,7 +621,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def rr_switch_buffer(self, machine, rr_switch_buffer_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def rr_switch_buffer(self, machine, rr_switch_buffer_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		1D experiment to calibrate switch delay for the resonator.
 
@@ -638,7 +654,7 @@ class EH_RR: # sub
 
 			with for_(n, 0, n < n_avg, n+1):
 				update_frequency(machine.resonators[qubit_index].name, res_if)
-				readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+				readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(I, I_st)
 				save(Q, Q_st)
@@ -650,11 +666,10 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, rr_switch_buffer_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, rr_switch_buffer_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
@@ -668,7 +683,7 @@ class EH_RR: # sub
 			for buffer_index, buffer_value in enumerate(rr_switch_buffer_sweep):
 				machine = self.set_digital_buffer(machine, "resonators", int(buffer_value))
 				config = build_config(machine)
-				qm = qmm.open_qm(config)
+				qm = self.qmm.open_qm(config)
 				timestamp_created = datetime.datetime.now()
 				job = qm.execute(rr_switch_buffer_prog)
 				# Get results from QUA program
@@ -714,7 +729,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def single_shot_IQ_blob(self, machine, qubit_index, res_freq = None, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def single_shot_IQ_blob(self, machine, qubit_index, res_freq = None, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""Runs single-shot readout experiment to get the IQ blobs
 		
 		Measures ground state I, Q, then excited state I, Q. Data saved as Ig, Qg, Ie, Qe in expt_dataset.
@@ -799,15 +814,14 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, rr_IQ_prog, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, rr_IQ_prog, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(rr_IQ_prog)
 			# Get progress counter to monitor runtime of the program
@@ -843,7 +857,7 @@ class EH_RR: # sub
 					ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), fancybox=True, shadow=True, ncol=5,
 							  markerscale=5)
 					plt.show()
-					plt.pause(0.1)
+					plt.pause(0.5)
 
 
 			# Fetch all data
@@ -858,10 +872,10 @@ class EH_RR: # sub
 			# generate xarray dataset
 			expt_dataset = xr.Dataset(
 				{
-					"Ig": (["x"], Ig),
-					"Qg": (["x"], Qg),
-					"Ie": (["x"], Ie),
-					"Qe": (["x"], Qe),
+					"I_g": (["x"], Ig),
+					"Q_g": (["x"], Qg),
+					"I_e": (["x"], Ie),
+					"Q_e": (["x"], Qe),
 				},
 			)
 			
@@ -920,7 +934,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def single_shot_freq_optimization(self, machine, res_freq_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def single_shot_freq_optimization(self, machine, res_freq_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'SNR'):
 		"""Run frequency optimization for single-shot readout.
 		
 		This sequence involves measuring the state of the resonator in two scenarios: first, after thermalization
@@ -939,6 +953,7 @@ class EH_RR: # sub
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `1000`)
 			final_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key to be plotted. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `SNR`)
 		
 		Returns:
 			[type]: [description]
@@ -1033,16 +1048,15 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate:  # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, ro_freq_opt, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, ro_freq_opt, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			# Open the quantum machine
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			# Send the QUA program to the OPX, which compiles and executes it
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(ro_freq_opt)  # execute QUA program
@@ -1070,13 +1084,17 @@ class EH_RR: # sub
 				
 				# Plot results
 				if live_plot:
+					if data_process_method is not 'SNR':
+						print(r'data_process_method is not SNR. Abort...')
+						return machine, None
+
 					plt.cla()
 					plt.plot(res_freq_sweep, SNR, ".")
 					plt.title("Readout Frequency Optimization")
 					plt.xlabel("Readout Frequency [Hz]")
 					plt.ylabel("SNR")
 					#plt.grid("on")
-					plt.pause(0.1)
+					plt.pause(0.5)
 
 			# Fetch all data
 			timestamp_finished = datetime.datetime.now()
@@ -1092,18 +1110,18 @@ class EH_RR: # sub
 			# generate xarray dataset
 			expt_dataset = xr.Dataset(
 				{
-					"Ig_avg": (["x"], Ig_avg),
-					"Qg_avg": (["x"], Qg_avg),
-					"Ie_avg": (["x"], Ie_avg),
-					"Qe_avg": (["x"], Qe_avg),
-					"Ig_var": (["x"], Ig_var),
-					"Qg_var": (["x"], Qg_var),
-					"Ie_var": (["x"], Ie_var),
-					"Qe_var": (["x"], Qe_var),
+					"I_g_avg": (["x"], Ig_avg),
+					"Q_g_avg": (["x"], Qg_avg),
+					"I_e_avg": (["x"], Ie_avg),
+					"Q_e_avg": (["x"], Qe_avg),
+					"I_g_var": (["x"], Ig_var),
+					"Q_g_var": (["x"], Qg_var),
+					"I_e_var": (["x"], Ie_var),
+					"Q_e_var": (["x"], Qe_var),
 					"SNR": (["x"], SNR),
 				},
 				coords={
-					"Readout Frequency": (["x"], res_freq_sweep),
+					"Readout_Frequency": (["x"], res_freq_sweep),
 				},
 			)
 			
@@ -1159,9 +1177,7 @@ class EH_RR: # sub
 					fig = plt.figure()
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
-				plt.plot(res_freq_sweep, SNR, ".")
-				plt.title("Readout Frequency Optimization")
-				plt.xlabel("Readout Frequency [Hz]")
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("SNR")
 
 			print(f"The optimal readout frequency is {res_freq_sweep[np.argmax(SNR)]} Hz (SNR={max(SNR)})")
@@ -1169,7 +1185,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def single_shot_amp_optimization(self, machine, res_amp_rel_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True):
+	def single_shot_amp_optimization(self, machine, res_amp_rel_sweep, qubit_index, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, data_process_method = 'Fidelity'):
 		"""Run amplitude optimization for single-shot readout.
 		
 		The sequence consists in measuring the state of the resonator after thermalization (qubit in |g>) and after
@@ -1186,6 +1202,7 @@ class EH_RR: # sub
 			to_simulate (bool): [description] (default: `False`)
 			simulation_len (number): [description] (default: `1000`)
 			final_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key to be plotted. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Fidelity`)
 		
 		Returns:
 			[type]: [description]
@@ -1265,16 +1282,15 @@ class EH_RR: # sub
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate:  # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, ro_amp_opt, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, ro_amp_opt, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			# Open the quantum machine
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			# Send the QUA program to the OPX, which compiles and executes it
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(ro_amp_opt)  # execute QUA program
@@ -1307,14 +1323,14 @@ class EH_RR: # sub
 			# generate xarray dataset
 			expt_dataset = xr.Dataset(
 				{
-					"Ig": (["x", "n"], Ig), # this dimension might be wrong...but maybe it doesn't matter in xarray?
-					"Qg": (["x", "n"], Qg),
-					"Ie": (["x", "n"], Ie),
-					"Qe": (["x", "n"], Qe),
+					"I_g": (["x", "n"], Ig), # this dimension might be wrong...but maybe it doesn't matter in xarray?
+					"Q_g": (["x", "n"], Qg),
+					"I_e": (["x", "n"], Ie),
+					"Q_e": (["x", "n"], Qe),
 					"Fidelity": (["x"], fidelity_vec),
 				},
 				coords={
-					"Readout Amplitude": (["x"], res_amp_abs_sweep),
+					"Readout_Amplitude": (["x"], res_amp_abs_sweep),
 				},
 			)
 			
@@ -1368,9 +1384,7 @@ class EH_RR: # sub
 			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
-				plt.plot(res_amp_abs_sweep, fidelity_vec, ".")
-				plt.title("Readout Amplitude Optimization")
-				plt.xlabel("Readout Amplitude [V]")
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("Readout Fidelity [%]")
 
 			res_amp_opt = res_amp_abs_sweep[np.argmax(fidelity_vec)]
@@ -1381,7 +1395,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def single_shot_duration_optimization(self, machine, division_length, qubit_index, readout_len = 1E3, ringdown_len = 0, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 1000, final_plot = True):
+	def single_shot_duration_optimization(self, machine, division_length, qubit_index, readout_len = 1E3, ringdown_len = 0, n_avg = 10E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, data_process_method = 'Fidelity'):
 		"""
 				READOUT OPTIMISATION: DURATION
 		This sequence involves measuring the state of the resonator in two scenarios: first, after thermalization
@@ -1520,16 +1534,15 @@ class EH_RR: # sub
 		#####################################
 		#  Open Communication with the QOP  #
 		#####################################
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
 		# Simulate or execute #
 		if to_simulate:  # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, ro_duration_opt, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, ro_duration_opt, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
 			# Open the quantum machine
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			# Send the QUA program to the OPX, which compiles and executes it
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(ro_duration_opt)  # execute QUA program
@@ -1562,14 +1575,14 @@ class EH_RR: # sub
 			# generate xarray dataset
 			expt_dataset = xr.Dataset(
 				{
-					"Ig": (["n", "x"], Ig), # this dimension might be wrong...but maybe it doesn't matter in xarray?
-					"Qg": (["n", "x"], Qg),
-					"Ie": (["n", "x"], Ie),
-					"Qe": (["n", "x"], Qe),
+					"I_g": (["n", "x"], Ig), # this dimension might be wrong...but maybe it doesn't matter in xarray?
+					"Q_g": (["n", "x"], Qg),
+					"I_e": (["n", "x"], Ie),
+					"Q_e": (["n", "x"], Qe),
 					"Fidelity": (["x"], fidelity_vec),
 				},
 				coords={
-					"Readout Length": (["x"], readout_len_sweep),
+					"Readout_Length": (["x"], readout_len_sweep),
 				},
 			)
 			
@@ -1577,7 +1590,53 @@ class EH_RR: # sub
 			expt_long_name = 'Readout Length Optimization'
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = []  # use t0, t1, t2, ...
-			expt_sequence = """"""
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	# Measure the ground state.
+	# With demod.accumulated, the results are QUA vectors with 1 point for each accumulated chunk
+	measure(
+		"readout",
+		machine.resonators[qubit_index].name,
+		None,
+		demod.accumulated("cos", II, division_length, "out1"),
+		demod.accumulated("sin", IQ, division_length, "out2"),
+		demod.accumulated("minus_sin", QI, division_length, "out1"),
+		demod.accumulated("cos", QQ, division_length, "out2"),
+	)
+	# Save the QUA vectors to their corresponding streams
+	with for_(ind, 0, ind < number_of_divisions, ind + 1):
+		assign(I[ind], II[ind] + IQ[ind])
+		save(I[ind], Ig_st)
+		assign(Q[ind], QQ[ind] + QI[ind])
+		save(Q[ind], Qg_st)
+	# Wait for the qubit to decay to the ground state
+	wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+
+	align()
+
+	# Measure the excited state.
+	# With demod.accumulated, the results are QUA vectors with 1 point for each accumulated chunk
+	play("pi", machine.qubits[qubit_index].name)
+	align()
+	measure(
+		"readout",
+		machine.resonators[qubit_index].name,
+		None,
+		demod.accumulated("cos", II, division_length, "out1"),
+		demod.accumulated("sin", IQ, division_length, "out2"),
+		demod.accumulated("minus_sin", QI, division_length, "out1"),
+		demod.accumulated("cos", QQ, division_length, "out2"),
+	)
+	# Save the QUA vectors to their corresponding streams
+	with for_(ind, 0, ind < number_of_divisions, ind + 1):
+		assign(I[ind], II[ind] + IQ[ind])
+		save(I[ind], Ie_st)
+		assign(Q[ind], QQ[ind] + QI[ind])
+		save(Q[ind], Qe_st)
+
+	# Wait for the qubit to decay to the ground state
+	wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+	# Save the averaging iteration to get the progress bar
+	save(n, n_st)"""
 
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
@@ -1587,9 +1646,8 @@ class EH_RR: # sub
 			if final_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
-				plt.plot(readout_len_sweep, fidelity_vec, ".")
-				plt.title("Readout Length Optimization")
-				plt.xlabel("Readout Length [V]")
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
+				plt.ylabel("Readout Fidelity [%]")
 				plt.ylabel("Readout Fidelity [%]")
 
 			res_len_opt = readout_len_sweep[np.argmax(fidelity_vec)]

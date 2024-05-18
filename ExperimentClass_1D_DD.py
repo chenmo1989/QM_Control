@@ -1,10 +1,11 @@
 class EH_DD:
-	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
+		self.qmm = ref_to_qmm
 
-	def TLS_echo(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def TLS_echo(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		TLS echo in 1D.
 		pi/2_y - tau - pi_x - tau - pi/2_y
@@ -85,7 +86,7 @@ class EH_DD:
 							play("pi2y_tls", machine.qubits[qubit_index].name)
 					align()
 					square_TLS_swap[0].run()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					align()
@@ -103,15 +104,14 @@ class EH_DD:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, tls_echo, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, tls_echo, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_echo)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
@@ -160,7 +160,7 @@ class EH_DD:
 			return machine, expt_dataset
 
 
-	def TLS_CPMG(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def TLS_CPMG(self, machine, tau_sweep, qubit_index, TLS_index, pi2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		TLS CPMG8 in 1D.
 		pi/2_y - (tau - pi_x - 2tau - pi_x - tau)^4 - pi/2_y
@@ -245,7 +245,7 @@ class EH_DD:
 							play("pi2y_tls", machine.qubits[qubit_index].name)
 					align()
 					square_TLS_swap[0].run()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					align()
@@ -263,15 +263,14 @@ class EH_DD:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, tls_echo, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, tls_echo, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_echo)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")

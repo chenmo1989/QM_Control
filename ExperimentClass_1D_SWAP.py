@@ -4,16 +4,17 @@ class EH_SWAP:
 	Methods:
 		update_tPath
 		update_str_datetime
-		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg, cd_time, ff_amp = 1.0, to_simulate = False, simulation_len = 1000)
+		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, ff_amp = 1.0, to_simulate = False, simulation_len = 3000)
 	"""
 
-	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs):
+	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
 		self.set_Labber = ref_to_set_Labber
 		self.datalogs = ref_to_datalogs
+		self.qmm = ref_to_qmm
 
 
-	def rabi_SWAP(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def rabi_SWAP(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		1D experiment: qubit rabi (length sweep) - SWAP - measure
 		qubit rabi duration in clock cycle
@@ -70,7 +71,7 @@ class EH_SWAP:
 					align()
 					square_TLS_swap[0].run()
 					align()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -87,15 +88,13 @@ class EH_SWAP:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, time_rabi, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
@@ -144,7 +143,7 @@ class EH_SWAP:
 			return machine, expt_dataset
 
 
-	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, TLS_index, n_avg, cd_time, to_simulate=False, simulation_len=1000, final_plot=True):
+	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True):
 		"""
 		1D SWAP spectroscopy. qubit pi - SWAP (sweep Z duration) - measure
 		tau_sweep in ns, only takes multiples of 4ns
@@ -184,7 +183,7 @@ class EH_SWAP:
 					align()
 					play("iswap", machine.flux_lines[qubit_index].name, duration=t)
 					align()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					align()
 					wait(50)
 					play("iswap" * amp(-1), machine.flux_lines[qubit_index].name, duration=t)
@@ -203,15 +202,14 @@ class EH_SWAP:
 		#  Open Communication with the QOP  #
 		#####################################
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)
-			job = qmm.simulate(config, iswap, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, iswap, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(iswap)
 			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
@@ -252,7 +250,7 @@ class EH_SWAP:
 		return machine, expt_dataset
 
 
-	def SWAP_rabi(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def SWAP_rabi(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		1D experiment for debug: SWAP - qubit rabi (sweep duration) - measure
 
@@ -309,7 +307,7 @@ class EH_SWAP:
 					play("pi" * amp(pi_amp_rel), machine.qubits[qubit_index].name, duration=t)
 					wait(5, machine.qubits[qubit_index].name)
 					align()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -326,15 +324,14 @@ class EH_SWAP:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, time_rabi, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
@@ -383,7 +380,7 @@ class EH_SWAP:
 			return machine, expt_dataset
 
 
-	def rabi_SWAP2(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 1000, final_plot = True, live_plot = False):
+	def rabi_SWAP2(self, machine, rabi_duration_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""
 		1D experiment: qubit rabi (sweep duration) - SWAP - SWAP, to see if the state comes back
 
@@ -441,7 +438,7 @@ class EH_SWAP:
 					wait(5)
 					square_TLS_swap[0].run()
 					align()
-					readout_avg_macro(machine.resonators[qubit_index].name,I,Q)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
@@ -460,15 +457,14 @@ class EH_SWAP:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		qmm = QuantumMachinesManager(host = machine.network.qop_ip, port = None, cluster_name = machine.network.cluster_name, octave = octave_config, log_level = 'ERROR')
-
+		
 		if to_simulate:
-			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
-			job = qmm.simulate(config, time_rabi, simulation_config)
+			simulation_config = SimulationConfig(duration = simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, time_rabi, simulation_config)
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
-			qm = qmm.open_qm(config)
+			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(time_rabi)
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
