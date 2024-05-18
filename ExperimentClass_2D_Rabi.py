@@ -34,34 +34,39 @@ class EH_Rabi:
 		self.datalogs = ref_to_datalogs
 		self.qmm = ref_to_qmm
 
+
 	def qubit_freq_vs_dc_flux(self, machine, dc_flux_sweep, qubit_if_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, ham_param = None, poly_param = None, to_simulate=False, simulation_len=3000, final_plot=True, live_plot=False, data_process_method = 'I'):
-		"""
-		qubit spectroscopy vs dc flux 2D experiment
-		go back and forth between 1D resonator spectroscopy and 1D qubit spectroscopy.
-		end result should be two 2D experiments, one for RR, one for qubit.
-		Requires the ham_param for RR, and poly_param for qubit
+		"""Run qubit spectroscopy vs dc flux (2D). 
+
+		Requires an initial qubit DC_tuning_curve (could come from educated guess based on ham_param), and resonator ham_param.
+		
+		The whole 2D sweep consists of 1D scans, calling `self.exp1D.res_freq` and `self.exp1D.qubit_freq`.
+		At each dc flux, we first run a 1D resonator spectroscopy, to identify the readout pulse frequency (minimum of Amplitude),
+		then set readout pulse frequency, and run 1D qubit spectroscopy. Then move on to the next dc flux.
+		Two datasets are saved, one with the resonator spectroscopy (2D, vs dc flux), one with the qubit spectroscopy (2D, vs dc flux), 
+		and another 1D array saving the readout pulse frequency used for each dc flux.
+		To distinguish from pure 2D resonator spectroscopy (usually for a larger range, covering a few Phi_0), with filename `res_spec2D`, here the resonator file is called `res_spec_vs_dc_flux`.
 		This sweep is not squared!!
 
 		Args:
-		:param machine
-		:param poly_param: for qubit polynomial fit
-		:param ham_param: fot resonator hamiltonian fit
-		:param dc_flux_sweep: 1D array for the dc flux sweep
-		:param qubit_if_sweep: sweep range around the estimated qubit frequency
-		:param qubit_index:
-		:param n_avg: repetition of the experiments
-		:param cd_time: cooldown time between subsequent experiments
-		:param to_simulate: True-run simulation; False (default)-run experiment.
-		:param simulation_len: Length of the sequence to simulate. In clock cycles (4ns).
-		:param final_plot: True (default) plot the experiment. False, do not plot.
+			machine ([type]): [description]
+			dc_flux_sweep ([type]): [description]
+			qubit_if_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `20E3`)
+			ham_param ([type]): [description] (default: `None`)
+			poly_param ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
 		
-		Return:
-			machine
-			qubit_freq_sweep
-			dc_flux_sweep
-			sig_amp_qubit
+		Returns:
+			[type]: [description]
 		"""
-		
+
 
 		# this gives us the option of fitting elsewhere (e.g. manually) and pass the fitted value in
 		if poly_param is None:
@@ -213,44 +218,44 @@ class EH_Rabi:
 		return machine, expt_dataset
 
 
-	def qubit_freq_vs_fast_flux_slow(self, machine, ff_sweep_abs, qubit_if_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, ff_to_dc_ratio = None, poly_param = None, to_simulate=False, simulation_len=3000, final_plot=True, live_plot=False, data_process_method = 'I'):
-		"""
-		2D qubit spectroscopy experiment vs fast flux
-		use this to sweep by fast flux. This should be a coarse sweep only!
-		this is an assembly of 1D qubit spectroscopy (from subroutines). Each 1D scan is called in a python loop, therefore slow.
+	def qubit_freq_vs_fast_flux_slow(self, machine, ff_sweep_abs, qubit_if_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, ff_to_dc_ratio = 4.5, poly_param = None, to_simulate=False, simulation_len=3000, final_plot=True, live_plot=False, data_process_method = 'I'):
+		"""Run qubit spectroscopy vs fast flux (2D), slow version: does NOT require an initial AC_tuning_curve.
+		
+		This is supposed to be an initial coarse sweep, to get an estimate of the first AC_tuning_curve. 
+		At each fast flux, the qubit frequency (sweep range) is estimated based on qubit DC_tuning_curve from `qubit_freq_vs_dc_flux`. 
+		The input argument `ff_to_dc_ratio` is a guess of the effective ratio between fast and dc flux. 
+		Then the qubit frequency is estimated to be around dc_flux = ff_to_dc_ratio * ff_sweep_abs + machine.dc_flux[channel_index].max_frequency_point)
+		The result can fit to give us qubit AC_tuning_curve. By adjusting ff_to_dc_ratio manually, we can have better coverage (qubit frequency in the scanned range), to give us a good initial estimate of AC_tuning_curve.
+		Readout is performed back at the sweet spot.
 
+		The old version could take AC_tuning_curve as well. But I have decided to remove that option, because it should be run with `qubit_freq_vs_fast_flux`, fast version.
+		
 		Args:
-		:param machine
-		:param ff_sweep_abs: absolute voltage value of fast flux sweep. [-0.5V, 0.5V]
-		:param qubit_if_sweep: sweep range around the estimated qubit frequency
-		:param qubit_index:
-		:param n_avg:
-		:param cd_time:
-		:param ff_to_dc_ratio: None (default). If not None, then tuning curve comes from dc flux tuning curve. find qubit freq est around the sweet spot, using this dc/ff ratio.
-		:param poly_param:
-		:param to_simulate:
-		:param simulation_len:
-		:param final_plot:
+			machine ([type]): [description]
+			ff_sweep_abs ([type]): [description]
+			qubit_if_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `20E3`)
+			ff_to_dc_ratio ([type]): [description] (default: `None`)
+			poly_param ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
 		
-		Return:
-			machine
-			qubit_freq_sweep
-			ff_sweep_abs
-			sig_amp_qubit
+		Returns:
+			[type]: [description]
 		"""
-		
+
 
 		# set up variables
 		ff_sweep = ff_sweep_abs / machine.flux_lines[qubit_index].flux_pulse_amp # relative pulse amp
-		if ff_to_dc_ratio is None:
-			if poly_param is None:
-				poly_param = machine.qubits[qubit_index].AC_tuning_curve
-			qubit_freq_est_sweep = np.polyval(poly_param, ff_sweep_abs) * 1E6 # Hz
-		else:
-			if poly_param is None:
-				poly_param = machine.qubits[qubit_index].DC_tuning_curve
-			channel_index = int(machine.qubits[qubit_index].name[1:])
-			qubit_freq_est_sweep = np.polyval(poly_param, (ff_to_dc_ratio * ff_sweep_abs) + machine.dc_flux[channel_index].max_frequency_point) * 1E6 # Hz
+		if poly_param is None:
+			poly_param = machine.qubits[qubit_index].DC_tuning_curve
+		channel_index = int(machine.qubits[qubit_index].name[1:])
+		qubit_freq_est_sweep = np.polyval(poly_param, (ff_to_dc_ratio * ff_sweep_abs) + machine.dc_flux[channel_index].max_frequency_point) * 1E6 # Hz
 		qubit_freq_est_sweep = np.floor(qubit_freq_est_sweep)
 
 		# Initialize empty vectors to store the global 'I' & 'Q' results
@@ -340,29 +345,27 @@ class EH_Rabi:
 
 
 	def qubit_freq_fast_flux_subroutine(self, machine, ff_sweep_rel, qubit_freq_est_sweep, qubit_if_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, fig = None):
-		"""
-		subroutine for 2D qubit freq spectroscopy vs fast flux
-		input should have been checked: no need to change LO.
-		Args:
-			machine
-			ff_sweep_rel (): relative voltage value of fast flux sweep. absolute value is ff_sweep_rel * machine.flux_lines[qubit_index].flux_pulse_amp
-			qubit_freq_est_sweep (): estimated qubit frequencies to be swept. Each freq correspond to a fast flux value above.
-			qubit_if_sweep (): sweep range around the estimated qubit frequency
-			qubit_index ():
-			n_avg ():
-			cd_time ():
-			to_simulate ():
-			simulation_len ():
-			fig (): None (default). If a fig is given, it gives us the ability to interrupt the experimental run.
+		"""Run subroutine for 2D qubit freq spectroscopy vs fast flux (`qubit_freq_vs_fast_flux`)
 
-		Returns:
-			machine
-			qubit_freq_sweep_tot
-			I_tot
-			Q_tot
-			ff_sweep_rel * machine.flux_lines[qubit_index].flux_pulse_amp; in other words: ff_sweep_abs
-		"""
+		Input arguments should have been checked: no need to check/change LO.
 		
+		Args:
+			machine ([type]): [description]
+			ff_sweep_rel ([type]): [description]
+			qubit_freq_est_sweep ([type]): [description]
+			qubit_if_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `20E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			fig ([type]): [description] (default: `None`)
+		
+		Returns:
+			[type]: [description]
+		"""
+
+
 		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
 		qubit_if_est_sweep = np.floor(qubit_freq_est_sweep - qubit_lo)
 		qubit_if_est_sweep = qubit_if_est_sweep.astype(int)
@@ -444,33 +447,33 @@ class EH_Rabi:
 
 
 	def qubit_freq_vs_fast_flux(self, machine, qubit_freq_sweep, qubit_if_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, poly_param = None, to_simulate=False, simulation_len=3000, final_plot=True, live_plot=False, data_process_method = 'I'):
-		"""
-		2D qubit spectroscopy experiment vs fast flux
-		with a good tuning curve, this method is used to run fine scans of the qubit spectroscopy, for identification of avoided crossings
-		consists of block-wise 2D scans using the qubit_freq_fast_flux_subroutine. Each block consists of 4 calls to the subroutine, with 2 LO frequencies.
-
+		"""Run qubit spectroscopy vs fast flux (2D), fast version: requires an initial AC_tuning_curve.
+		
+		The whole 2D sweep consists of block-wise 2D scans, calling the `qubit_freq_fast_flux_subroutine`. 
+		Each block consists of 4 calls to the subroutine, with 2 LO frequencies (octave calibration only for the qubit). 
+		Readout is performed back at the sweet spot.
+		With a good AC_tuning_curve, this method is used to run fine scans of the qubit spectroscopy, for identification of avoided crossings
+		
 		Args:
-			machine
-			qubit_freq_sweep (): desired qubit frequency sweep range for the 2D scan. The corresponding fast flux value will be calculated based on a 4th order polynomial tuning curve.
-			qubit_if_sweep (): sweep range around the estimated qubit frequency
-			qubit_index ():
-			n_avg ():
-			cd_time ():
-			poly_param (): None (default). qubit freq. tuning curve. Must be 4th order polynomial!
-			to_simulate ():
-			simulation_len ():
-			final_plot ():
-			
+			machine ([type]): [description]
+			qubit_freq_sweep ([type]): [description]
+			qubit_if_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `20E3`)
+			poly_param ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+		
 		Returns:
-			machine
-			qubit_freq_sweep
-			ff_sweep_abs
-			sig_amp_qubit
+			[type]: [description]
 		"""
-		
 
-		# set up variables
-		
+
+		# set up variables		
 		if poly_param is None:
 			poly_param = np.array(machine.qubits[qubit_index].AC_tuning_curve[:])
 

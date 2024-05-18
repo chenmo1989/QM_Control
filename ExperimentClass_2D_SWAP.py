@@ -15,7 +15,7 @@ class EH_SWAP:
 		self.datalogs = ref_to_datalogs
 		self.qmm = ref_to_qmm
 
-	def swap_coarse(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True):
+	def swap_coarse(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True, live_plot = False, data_process_method = 'I'):
 		"""
 		runs 2D SWAP spectroscopy experiment
 		Note time resolution is 4ns!
