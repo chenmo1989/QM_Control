@@ -1,6 +1,6 @@
 {
   "qubits[].name": ["q1"],
-  "qubits[].f_01": [6199580610.0],
+  "qubits[].f_01": [6199837651.0],
   "qubits[].f_tls": [[5403895143.0,5116882049.0]],
   "qubits[].anharmonicity": [171542330.0],
   "qubits[].drag_coefficient": [0.0],
@@ -62,7 +62,7 @@
   "dc_flux[]_len": 7,
   "octaves[].name": ["octave1"],
   "octaves[].LO_sources[].name": [["LO1","LO2","LO3"]],
-  "octaves[].LO_sources[].LO_frequency": [[7183120679.0,6249580610.0,5000000000.0]],
+  "octaves[].LO_sources[].LO_frequency": [[7183120679.0,6249837651.0,5000000000.0]],
   "octaves[].LO_sources[].LO_source": [["internal","internal","internal"]],
   "octaves[].LO_sources[].output_mode": [["always_on","always_on","always_on"]],
   "octaves[].LO_sources[].gain": [[0,0,0]],

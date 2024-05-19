@@ -1,5 +1,23 @@
+from qm.qua import *
+from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
+from qm.octave import *
+from configuration import *
+from scipy import signal
+from qualang_tools.bakery import baking
+from qualang_tools.results import progress_counter, fetching_tool
+from qualang_tools.plot import interrupt_on_close
+from qualang_tools.loops import from_array
+from qm.octave import QmOctaveConfig
+from quam import QuAM
+from typing import Union
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
+import warnings
+import json
+import matplotlib.pyplot as plt
+import numpy as np
 import datetime
-from configuration import datetime_format_string
+import xarray as xr
+import time
 
 class EH_SWAP:
 	"""
@@ -114,7 +132,7 @@ class EH_SWAP:
 					plt.xlabel("Fast Flux [V]")
 					plt.ylabel("Interaction Time [ns]")
 					plt.show()
-					plt.plot(0.5)
+					plt.pause(0.5)
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
@@ -130,8 +148,8 @@ class EH_SWAP:
 			        "Q": (["x", "y"], Q),
 			    },
 			    coords={
-			        "Fast_Flux": (["x"], ff_sweep_abs),
-			        "Flux_Time": (["y"], tau_sweep_abs),
+			        "Fast_Flux": (["y"], ff_sweep_abs),
+			        "Interaction_Time": (["x"], tau_sweep_abs),
 			    },
 			)
 			
