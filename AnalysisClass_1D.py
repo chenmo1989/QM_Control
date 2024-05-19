@@ -492,8 +492,6 @@ class AH_exp1D:
 		"""
 
 
-		y = expt_dataset[data_process_method].values
-		
 		# get the key for coordinate along x
 		coord_key = list(expt_dataset.coords.keys())
 		for key in coord_key:
@@ -501,6 +499,7 @@ class AH_exp1D:
 				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
 		    	
 		x = expt_dataset.coords[coord_key_x].values
+		y = expt_dataset[data_process_method].values
 
 		prefix = r"decay_"
 		mod = lmfit.models.SineModel() * lmfit.Model(self._stretched_exp, prefix = prefix) + lmfit.models.LinearModel()
@@ -510,14 +509,8 @@ class AH_exp1D:
 		pars[prefix + 'exponent'].set(value = 2, min = 0, max = 6) # stretched exp, assuming gaussian noise
 
 		# educated guess
-		delta = abs(x[0] - x[1])
-		Fs = 1 / delta  # Sampling frequency
-		L = np.size(x)
-		NFFT = int(2 * 2 ** self._next_power_of_2(L))
-		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
-		Y = np.fft.fft(y - np.mean(y), NFFT) / L
-		DataY = abs(Y[0:(NFFT // 2)]) ** 2
-		index = np.argmax(DataY)
+		Freq, DataFFT = self._fft(x, y)
+		index = np.argmax(DataFFT)
 		det = Freq[index]
 		amp = abs(max(y) - min(y)) / 2
 
@@ -710,6 +703,19 @@ class AH_exp1D:
 			[type]: [description]
 		"""
 		return amplitude * np.exp(- (x / decay) ** exponent)
+
+
+	def _fft(self, x, y):
+
+		delta = abs(x[0] - x[1])
+		Fs = 1 / delta  # Sampling frequency
+		L = np.size(x)
+		NFFT = int(2 * 2 ** self._next_power_of_2(L))
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
+		Y = np.fft.fft(y - np.mean(y), NFFT) / L
+		DataFFT = abs(Y[0:(NFFT // 2)]) ** 2
+
+		return Freq, DataFFT
 
 
 	def _false_detections(self, threshold, Ig, Ie):
