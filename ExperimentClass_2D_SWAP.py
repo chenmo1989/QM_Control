@@ -75,11 +75,13 @@ class EH_SWAP:
 						play("const" * amp(da), machine.flux_lines[qubit_index].name, duration = t) # in clock cycle!
 						align()
 						readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
-						align()
-						play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration = t) 
 						wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 						save(I, I_st)
 						save(Q, Q_st)
+						align()
+						play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration = t)
+						align()
+						wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -164,11 +166,13 @@ class EH_SWAP:
 			play("const" * amp(da), machine.flux_lines[qubit_index].name, duration = t) # in clock cycle!
 			align()
 			readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
-			align()
-			play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration = t) 
 			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 			save(I, I_st)
 			save(Q, Q_st)
+			align()
+			play("const" * amp(-da), machine.flux_lines[qubit_index].name, duration = t) 
+			align()
+			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
 			# save data
@@ -205,8 +209,7 @@ class EH_SWAP:
 		Returns:
 			[type]: [description]
 		"""
-		
-
+		config = build_config(machine) # must be here before def of baking
 		ff_sweep_rel = ff_sweep_abs / machine.flux_lines[qubit_index].flux_pulse_amp
 		
 		# set up variables
@@ -273,8 +276,6 @@ class EH_SWAP:
 		#####################################
 		#  Open Communication with the QOP  #
 		#####################################
-		config = build_config(machine)
-		
 		if to_simulate:
 			simulation_config = SimulationConfig(duration = simulation_len)
 			job = self.qmm.simulate(config, iswap, simulation_config)
@@ -303,11 +304,11 @@ class EH_SWAP:
 					plt.cla()
 
 					if data_process_method is 'Phase':
-						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), cmap="seismic")
+						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.transpose(np.unwrap(np.angle(I + 1j * Q))), cmap="seismic")
 					elif data_process_method is 'Amplitude':
-						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.abs(I + 1j * Q), cmap="seismic")
+						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.transpose(np.abs(I + 1j * Q)), cmap="seismic")
 					elif data_process_method is 'I':
-						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, I, cmap="seismic")
+						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.transpose(I), cmap="seismic")
 
 					plt.title("SWAP Spectroscopy")
 					plt.xlabel("Fast Flux [V]")
@@ -329,8 +330,8 @@ class EH_SWAP:
 			        "Q": (["x", "y"], Q),
 			    },
 			    coords={
-			        "Fast_Flux": (["y"], ff_sweep_abs),
-			        "Interaction_Time": (["x"], tau_sweep_abs),
+			        "Fast_Flux": (["x"], ff_sweep_abs),
+			        "Interaction_Time": (["y"], tau_sweep_abs),
 			    },
 			)
 			
