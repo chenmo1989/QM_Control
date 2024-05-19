@@ -10,13 +10,14 @@ from qualang_tools.loops import from_array
 from qm.octave import QmOctaveConfig
 from quam import QuAM
 from typing import Union
-from macros import *
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
 import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import xarray as xr
+
 
 class EH_T1:
 	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):

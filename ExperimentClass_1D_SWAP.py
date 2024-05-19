@@ -1,11 +1,26 @@
+from qm.qua import *
+from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
+from qm.octave import *
+from configuration import *
+from scipy import signal
+from qualang_tools.bakery import baking
+from qualang_tools.results import progress_counter, fetching_tool
+from qualang_tools.plot import interrupt_on_close
+from qualang_tools.loops import from_array
+from qm.octave import QmOctaveConfig
+from quam import QuAM
+from typing import Union
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
+import warnings
+import json
+import matplotlib.pyplot as plt
+import numpy as np
+import datetime
+import xarray as xr
+
+
 class EH_SWAP:
-	"""
-	class in ExperimentHandle, for SWAP sequence related 1D experiments
-	Methods:
-		update_tPath
-		update_str_datetime
-		qubit_freq(self, qubit_freq_sweep, qubit_index, n_avg = 1E3, cd_time = 20E3, ff_amp = 1.0, to_simulate = False, simulation_len = 3000)
-	"""
+
 
 	def __init__(self, ref_to_set_octave, ref_to_set_Labber, ref_to_datalogs, ref_to_qmm):
 		self.set_octave = ref_to_set_octave
@@ -143,7 +158,194 @@ class EH_SWAP:
 			return machine, expt_dataset
 
 
-	def swap_coarse(self,machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True):
+	def swap(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True, live_plot = False, data_process_method = 'I'):
+		"""Run 1D qubit SWAP spectroscopy, i.e., vacuum-Rabi between qubit and TLS, sweeping fast flux pulse duration. 1ns time resolution.
+		
+		Note that time resolution is 1ns with baking. Allows tau < 16ns. 
+		Require flux amp determined (from 2D swap), and saved as iswap.level/length for the TLS_index.
+		
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			ff_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time (number): [description] (default: `20E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+		
+		Returns:
+			[type]: [description]
+		"""
+
+
+		config = build_config(machine) # must be here before def of baking
+		
+		# set up variables
+		max_pulse_duration = int(max(tau_sweep_abs))
+		min_pulse_duration = int(min(tau_sweep_abs))
+		dt_pulse_duration = int(tau_sweep_abs[2] - tau_sweep_abs[1])
+
+		# fLux pulse waveform generation, 250 ns/points
+		flux_waveform = np.array([machine.flux_lines[qubit_index].iswap.level[TLS_index]] * max_pulse_duration) # flux pulse amp = iswap.level[TLS_index]
+
+		def baked_ff_waveform(waveform, pulse_duration):
+			pulse_segments = []  # Stores the baking objects
+			# Create the different baked sequences, each one corresponding to a different truncated duration
+			for i in range(0, pulse_duration + 1):
+				with baking(config, padding_method="right") as b:
+					if i == 0:  # Otherwise, the baking will be empty and will not be created
+						wf = [0.0] * 16
+					else:
+						wf = waveform[:i].tolist()
+					b.add_op("flux_pulse", machine.flux_lines[qubit_index].name, wf)
+					b.play("flux_pulse", machine.flux_lines[qubit_index].name)
+				# Append the baking object in the list to call it from the QUA program
+				pulse_segments.append(b)
+			return pulse_segments
+
+		# Baked flux pulse segments
+		square_pulse_segments = baked_ff_waveform(flux_waveform, max_pulse_duration)
+
+		with program() as iswap:
+			[I, Q, n, I_st, Q_st, n_st] = declare_vars()
+			t = declare(int)
+			da = declare(fixed)
+			segment = declare(int)  # Flux pulse segment
+
+			with for_(n, 0, n < n_avg, n + 1):
+				with for_(segment, min_pulse_duration, segment <= max_pulse_duration, segment + dt_pulse_duration):
+					play("pi", machine.qubits[qubit_index].name)
+					align()
+					with switch_(segment):
+						for j in range(min_pulse_duration,max_pulse_duration+1, dt_pulse_duration):
+							with case_(j):
+								square_pulse_segments[j].run(amp_array=[(machine.flux_lines[qubit_index].name, da)])
+					align()
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+					save(I, I_st)
+					save(Q, Q_st)
+					align()
+					with switch_(segment):
+						for j in range(min_pulse_duration,max_pulse_duration+1,dt_pulse_duration):
+							with case_(j):
+								square_pulse_segments[j].run(amp_array=[(machine.flux_lines[qubit_index].name, -da)])
+					align()
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+				save(n, n_st)
+
+			with stream_processing():
+				# for the progress counter
+				n_st.save("iteration")
+				I_st.buffer(len(tau_sweep_abs)).average().save("I")
+				Q_st.buffer(len(tau_sweep_abs)).average().save("Q")
+
+		#####################################
+		#  Open Communication with the QOP  #
+		#####################################
+		if to_simulate:
+			simulation_config = SimulationConfig(duration = simulation_len)
+			job = self.qmm.simulate(config, iswap, simulation_config)
+			job.get_simulated_samples().con1.plot()
+			return machine, None
+		else:
+			qm = self.qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
+			job = qm.execute(iswap)
+			results = fetching_tool(job, ["I", "Q", "iteration"], mode="live")
+
+			if live_plot:
+				fig = plt.figure()
+				plt.rcParams['figure.figsize'] = [8,4]
+				interrupt_on_close(fig, job)
+
+			while results.is_processing():
+				# Fetch results
+				I, Q, iteration = results.fetch_all()
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+				# progress bar
+				progress_counter(iteration, n_avg, start_time=results.get_start_time())
+				
+				if live_plot:
+					plt.cla()
+
+					if data_process_method is 'Phase':
+						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), '.')
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method is 'Amplitude':
+						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), '.')
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method is 'I':
+						plt.plot(tau_sweep_abs, I, '.')
+						plt.ylabel("Signal I Quadrature [V]")
+
+					plt.title("SWAP Spectroscopy")
+					plt.xlabel("Interaction Time [ns]")
+					plt.pause(0.5)
+
+			# fetch all data after live-updating
+			timestamp_finished = datetime.datetime.now()
+			I, Q, iteration = results.fetch_all()
+			# Convert I & Q to Volts
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+			
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Interaction_Time": (["x"], tau_sweep_abs),
+			    },
+			)
+			
+			expt_name = 'swap1D'
+			expt_long_name = 'SWAP Spectroscopy'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(segment, min_pulse_duration, segment <= max_pulse_duration, segment + dt_pulse_duration):
+		play("pi", machine.qubits[qubit_index].name)
+		align()
+		with switch_(segment):
+			for j in range(min_pulse_duration,max_pulse_duration+1, dt_pulse_duration):
+				with case_(j):
+					square_pulse_segments[j].run(amp_array=[(machine.flux_lines[qubit_index].name, da)])
+		align()
+		readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+		save(I, I_st)
+		save(Q, Q_st)
+		align()
+		with switch_(segment):
+			for j in range(min_pulse_duration,max_pulse_duration+1,dt_pulse_duration):
+				with case_(j):
+					square_pulse_segments[j].run(amp_array=[(machine.flux_lines[qubit_index].name, -da)])
+		align()
+		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+	save(n, n_st)"""
+
+			# save data
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
+				plt.cla()
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')				
+
+			return machine, expt_dataset
+
+
+	def swap_coarse(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True, live_plot = False, data_process_method = 'I'):
 		"""
 		1D SWAP spectroscopy. qubit pi - SWAP (sweep Z duration) - measure
 		tau_sweep in ns, only takes multiples of 4ns
@@ -163,9 +365,7 @@ class EH_SWAP:
 			machine
 			tau_sweep_abs
 			sig_amp
-		"""
-
-		
+		"""		
 
 		tau_sweep_cc = tau_sweep_abs // 4  # in clock cycles
 		tau_sweep_cc = np.unique(tau_sweep_cc)

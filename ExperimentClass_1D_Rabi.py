@@ -10,16 +10,16 @@ from qualang_tools.loops import from_array
 from qm.octave import QmOctaveConfig
 from quam import QuAM
 from typing import Union
-from macros import *
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
 import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
-import time
 import xarray as xr
 
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
+
 
 class EH_Rabi:
 	"""Class in ExperimentHandle, for running Rabi sequence based 1D experiments.
