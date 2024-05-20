@@ -164,6 +164,30 @@ save(n, n_st)"""
 
 
 	def TLS_T1(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False,  data_process_method = 'I'):
+		"""TLS T1 measurement with iswap.
+		
+		qubit pi pulse -- iswap -- delay -- iswap -- readout.
+		Opposite sign iswaps are applied at the end of the sequence, with delay of cd_time_qubit, cd_time_TLS after each opposite iswap. 
+		4 iswaps in total.
+		Turns out a few hundred us cd_time_TLS is needed, to get high quality TLS T1 measurement. Likely due to build up in transients?
+
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+		
+		Returns:
+			[type]: [description]
+		"""
 
 		config = build_config(machine)
 

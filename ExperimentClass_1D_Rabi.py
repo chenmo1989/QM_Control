@@ -752,12 +752,13 @@ class EH_Rabi:
 			return machine, expt_dataset
 
 
-	def TLS_freq(self, machine, TLS_freq_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I'):
+	def TLS_freq(self, machine, TLS_freq_sweep, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
 		"""TLS spectroscopy experiment.
 		
 		TLS spectroscopy to find the TLS resonance frequency, sweeping frequency of a strong XY pulse that directly drives the TLS, then SWAP to the qubit for readout. 
 		SWAP uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index];
 		TLS pulse is a square wave defined by machine.qubits[qubit_index].pi_length_tls/pi_amp_tls[TLS_index]. These TLS pulse parameters will be passed to hardware_parameters first.
+		calibrate_TLS = True could be used in the first run, to calibrate for these large amp.
 		
 		Args:
 			machine ([type]): [description]
@@ -766,19 +767,21 @@ class EH_Rabi:
 			TLS_index ([type]): [description]
 			pi_amp_rel (number): [description] (default: `1.0`)
 			n_avg (number): [description] (default: `1E3`)
-			cd_time_qubit (number): [description] (default: `10E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
 			cd_time_TLS ([type]): [description] (default: `None`)
 			to_simulate (bool): [description] (default: `False`)
-			simulation_len (number): [description] (default: `1000`)
+			simulation_len (number): [description] (default: `3000`)
 			final_plot (bool): [description] (default: `True`)
-			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `I`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+			calibrate_octave (bool): [description] (default: `False`)
 		
 		Returns:
 			machine
 			expt_dataset
 		"""
 
-		calibrate_octave = False # flag for calibrating octave. So that I can move this to the real run, avoiding it for simulation
+		config = build_config(machine)
 
 		if cd_time_TLS is None:
 			cd_time_TLS = cd_time_qubit
@@ -787,8 +790,8 @@ class EH_Rabi:
 		TLS_if_sweep = TLS_freq_sweep - qubit_lo
 		TLS_if_sweep = np.floor(TLS_if_sweep)
 
-		if np.max(abs(qubit_if_sweep)) > 400E6: # check if parameters are within hardware limit
-			print("qubit if range > 400MHz")
+		if np.max(abs(TLS_if_sweep)) > 400E6: # check if parameters are within hardware limit
+			print("TLS if range > 400MHz")
 			return machine, None
 
 		# Update the hardware parameters to TLS of interest
@@ -817,23 +820,20 @@ class EH_Rabi:
 			with for_(n, 0, n < n_avg, n+1):
 				with for_(*from_array(df,TLS_if_sweep)):
 					update_frequency(machine.qubits[qubit_index].name, df)
-					if pi_amp_rel==1.0:
-						play('pi_tls', machine.qubits[qubit_index].name)
-					else:
-						play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name)
+					play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name)
 					align()
 					square_TLS_swap[0].run()
 					align()
 					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
-					align()
+					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
 					# eliminate charge accumulation, also initialize TLS
-					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
 					align()
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
+
 			with stream_processing():
 				n_st.save('iteration')
 				I_st.buffer(len(TLS_if_sweep)).average().save("I")
@@ -842,7 +842,6 @@ class EH_Rabi:
 		#####################################
 		#  Open Communication with the QOP  #
 		#####################################
-		config = build_config(machine)
 		# Simulate or execute #
 		if to_simulate: # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
 			simulation_config = SimulationConfig(duration = simulation_len)
@@ -850,6 +849,7 @@ class EH_Rabi:
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
+			# calibrates octave for the TLS pulse
 			if calibrate_octave:
 				machine = self.set_octave.calibration(machine, qubit_index, TLS_index = TLS_index, log_flag = True, calibration_flag = True, qubit_only = True)
 
@@ -858,12 +858,13 @@ class EH_Rabi:
 			job = qm.execute(TLS_freq_prog)
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
+			
 			# Live plotting
-		    #%matplotlib qt
-			if final_plot:
+		    if live_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
+			
 			while results.is_processing():
 				# Fetch results
 				I, Q, iteration = results.fetch_all()
@@ -872,29 +873,70 @@ class EH_Rabi:
 				# progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
 
-				if final_plot:
+				if live_plot:
 					plt.cla()
-					plt.title("TLS spectroscopy")
-					plt.plot((TLS_freq_sweep) / u.MHz, np.sqrt(I**2 +  Q**2), ".")
-					plt.xlabel("Frequency [MHz]")
-					plt.ylabel("Signal Amplitude [V]")
+					plt.title("TLS Spectroscopy")
+					if data_process_method == 'Phase':
+						plt.plot((TLS_freq_sweep) / u.MHz, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.xlabel("TLS Frequency [MHz]")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method == 'Amplitude':
+						plt.plot((TLS_freq_sweep) / u.MHz, np.abs(I + 1j * Q), ".")
+						plt.xlabel("TLS Frequency [MHz]")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method == 'I':
+						plt.plot((TLS_freq_sweep) / u.MHz, I, ".")
+						plt.xlabel("TLS Frequency [MHz]")
+						plt.ylabel("Signal I Quadrature [V]")
+					plt.pause(0.5)
 
 			# fetch all data after live-updating
+			timestamp_finished = datetime.datetime.now()
 			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I**2 + Q**2)
-			sig_phase = np.angle(I + 1j * Q)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "TLS_Frequency": (["x"], TLS_freq_sweep),
+			    },
+			)
+			
+			expt_name = 'tls_spec'
+			expt_long_name = 'TLS Spectroscopy'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n+1):
+	with for_(*from_array(df,TLS_if_sweep)):
+		update_frequency(machine.qubits[qubit_index].name, df)
+		play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name)
+		align()
+		square_TLS_swap[0].run()
+		align()
+		readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+		wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
+		save(I, I_st)
+		save(Q, Q_st)
+		# eliminate charge accumulation, also initialize TLS
+		align()
+		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
+		wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+	save(n, n_st)"""
 
 			# save data
-			exp_name = 'freq'
-			qubit_name = 'Q' + str(qubit_index + 1) + 'TLS' + str(TLS_index+1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name), {"TLS_freq": TLS_freq_sweep, "sig_amp": sig_amp, "sig_phase": sig_phase})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
+				plt.cla()
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')				
 
 			return machine, expt_dataset
 
