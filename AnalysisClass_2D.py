@@ -178,7 +178,7 @@ class AH_exp2D:
 		return poly_param
 
 
-	def qubit_vs_flux(self, expt_dataset, fit_order = 4, to_plot = True, data_process_method = 'Amplitude'):
+	def qubit_vs_flux(self, expt_dataset, fit_order = 4, to_plot = True, data_process_method = 'I'):
 		"""Analyze the qubit spectroscopy vs flux data (2D). Work with both dc flux and fast flux.
 		
 		2D data is first sliced at each dc flux point, and qubit frequency is identified by fitting to a Gaussian peak (using Amplitude).
@@ -241,6 +241,77 @@ class AH_exp2D:
 		return poly_param
 
 
+	def SWAP_fft(self, expt_dataset, to_plot = True, data_process_method = 'I'):
+	    # Find the coordinate that contains 'Time'
+	    for keys in expt_dataset.coords:
+	        if 'Time' in keys:
+	            coord_key_time = keys
+			else:
+				coord_key_other = keys
+
+	    if coord_key_time is None:
+	        print("No coordinate containing 'Time' found in the dataset.")
+	        return None
+	    
+	    # find the dimension name and corresponding axis index for 'Time'
+	    dim_name_time = expt_dataset.coords[coord_key_time].dims[0]
+	    axis_index_time = dataset[data_process_method].get_axis_num(dim_name_time)
+
+	    # Perform FFT along the specified time axis
+	    fft_result = np.fft.fft(dataset[data_process_method].values, axis=axis_index_time)
+	    
+	    # Calculate the sample spacing (assuming time is in seconds)
+	    sample_spacing = np.diff(expt_dataset.coords[coord_key_time][0:2])[0] # difference between [1], [0] items. Assuming equally-spaced.
+	    
+	    # Compute the corresponding frequencies
+	    frequencies = np.fft.fftfreq(time.size, d=sample_spacing) * 1E9 # GHz to Hz
+	    
+	    # take the positive frequency part
+	    positive_freq_indices = frequencies >= 0
+	    frequencies = frequencies[positive_freq_indices]
+    	fft_result = fft_result[positive_freq_indices, :] if axis_index_time == 0 else fft_result[:, positive_freq_indices]
+	    
+	    # generate an xarray dataset to save it
+
+	    if axis_index_time ==0:
+		    fft_dataset = xr.Dataset(
+				    {
+				        "FFT_Result": (["x", "y"], fft_result),
+				    },
+				    coords={
+				        "FFT_Frequency": (["x"], frequencies),
+				        coord_key_other: (["y"], expt_dataset.coords[coord_key_other]),
+				    },
+				)
+	    else:
+	    	fft_dataset = xr.Dataset(
+				    {
+				        "FFT_Result": (["x", "y"], fft_result),
+				    },
+				    coords={
+				        "FFT_Frequency": (["y"], frequencies),
+				        coord_key_other: (["x"], expt_dataset.coords[coord_key_other]),
+				    },
+				)
+
+		
+		fft_dataset.attrs['name'] = "fft_" + expt_dataset.attrs['name']
+		fft_dataset.attrs['long_name'] = "FFT of " + expt_dataset.attrs['long_name']
+		fft_dataset.attrs['qubit'] = expt_dataset.attrs['qubit']
+		fft_dataset.attrs['TLS'] = expt_dataset.attrs['TLS']
+		
+		if to_plot:
+			fig = plt.figure()
+			plt.rcParams['figure.figsize'] = [8, 4]
+			plt.cla()
+
+			# 2D spectroscopy plot
+			expt_dataset[data_process_method].plot(x = coord_key_other, y = "FFT_Frequency", cmap = "seismic")
+			plt.show()
+
+	    return fft_dataset
+
+
 	def ham(self, dc_flux, wr, Ec, Ej, c, phi0, g, output_flag = 1):
 		"""
 		The Jaynes-Cummings Hamiltonian, all in units of MHz
@@ -284,6 +355,7 @@ class AH_exp2D:
 		freq_sys = np.array(freq_sys)
 
 		return freq_sys
+
 
 	def phi_flux_rr(self,dc_flux, c, phi0):
 		"""

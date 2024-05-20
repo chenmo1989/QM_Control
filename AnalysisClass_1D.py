@@ -509,7 +509,13 @@ class AH_exp1D:
 		pars[prefix + 'exponent'].set(value = 2, min = 0, max = 6) # stretched exp, assuming gaussian noise
 
 		# educated guess
-		Freq, DataFFT = self._fft(x, y)
+		delta = abs(x[0] - x[1])
+		Fs = 1 / delta  # Sampling frequency
+		L = np.size(x)
+		NFFT = int(2 * 2 ** self._next_power_of_2(L))
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
+		Y = np.fft.fft(y - np.mean(y), NFFT) / L
+		DataFFT = abs(Y[0:(NFFT // 2)]) ** 2
 		index = np.argmax(DataFFT)
 		det = Freq[index]
 		amp = abs(max(y) - min(y)) / 2
@@ -688,6 +694,54 @@ class AH_exp1D:
 		return angle.item(), threshold.item(), fidelity.item(), gg.item(), ge.item(), eg.item(), ee.item()
 
 
+	def fft(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		if 'Time' not in coord_key_x:
+			print('Cannot find a Time coordinate in dataset. Abort...')
+			return None
+		    	
+		x = expt_dataset.coords[coord_key_x].values
+		y = expt_dataset[data_process_method].values
+
+		delta = abs(x[0] - x[1])
+		Fs = 1 / delta  # Sampling frequency
+		L = np.size(x)
+		NFFT = int(2 * 2 ** self._next_power_of_2(L))
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
+		if expt_dataset.coords[coord_key_x].attrs['units'] is 'ns':
+			Freq = Freq * 1E9
+
+		Y = np.fft.fft(y - np.mean(y), NFFT) / L
+		FFT_Coeff = abs(Y[0:(NFFT // 2)]) ** 2
+
+		fft_dataset = xr.Dataset(
+			    {
+			        "FFT_Result": (["x"], FFT_Coeff),
+			    },
+			    coords={
+			        "FFT_Frequency": (["x"], Freq),
+			    },
+			)
+		
+		fft_dataset.attrs['name'] = "fft_" + expt_dataset.attrs['name']
+		fft_dataset.attrs['long_name'] = "FFT of " + expt_dataset.attrs['long_name']
+		fft_dataset.attrs['qubit'] = expt_dataset.attrs['qubit']
+		fft_dataset.attrs['TLS'] = expt_dataset.attrs['TLS']
+		
+		if to_plot:
+			fig = plt.figure()
+			plt.rcParams['figure.figsize'] = [6, 3]
+			plt.cla()
+			fft_dataset['FFT_Result'].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')	
+
+		return fft_dataset
+
+
 	def _stretched_exp(self, x, amplitude, decay, exponent):
 		"""Auxiliary function for stretched exponential fitting.
 		
@@ -703,19 +757,6 @@ class AH_exp1D:
 			[type]: [description]
 		"""
 		return amplitude * np.exp(- (x / decay) ** exponent)
-
-
-	def _fft(self, x, y):
-
-		delta = abs(x[0] - x[1])
-		Fs = 1 / delta  # Sampling frequency
-		L = np.size(x)
-		NFFT = int(2 * 2 ** self._next_power_of_2(L))
-		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
-		Y = np.fft.fft(y - np.mean(y), NFFT) / L
-		DataFFT = abs(Y[0:(NFFT // 2)]) ** 2
-
-		return Freq, DataFFT
 
 
 	def _false_detections(self, threshold, Ig, Ie):
