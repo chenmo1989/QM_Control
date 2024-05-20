@@ -226,11 +226,11 @@ class EH_1D:
 		"""
 
 
-		if data_process_method is 'Phase':
+		if data_process_method == 'Phase':
 			y = np.unwrap(np.angle(I + 1j * Q))
-		elif data_process_method is 'Amplitude':
+		elif data_process_method == 'Amplitude':
 			y = np.abs(I + 1j * Q)
-		elif data_process_method is 'I':
+		elif data_process_method == 'I':
 			y = I
 
 		idx = np.argmin(y)  # find minimum

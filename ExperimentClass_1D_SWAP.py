@@ -274,13 +274,13 @@ class EH_SWAP:
 				if live_plot:
 					plt.cla()
 
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), '.')
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), '.')
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(tau_sweep_abs, I, '.')
 						plt.ylabel("Signal I Quadrature [V]")
 

@@ -144,15 +144,15 @@ class EH_Rabi:
 					# Update the live plot!
 					plt.cla()
 					plt.title("Qubit Spectroscopy")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot((qubit_freq_sweep) / u.MHz, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.xlabel("Qubit Frequency [MHz]")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot((qubit_freq_sweep) / u.MHz, np.abs(I + 1j * Q), ".")
 						plt.xlabel("Qubit Frequency [MHz]")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot((qubit_freq_sweep) / u.MHz, I, ".")
 						plt.xlabel("Qubit Frequency [MHz]")
 						plt.ylabel("Signal I Quadrature [V]")
@@ -307,13 +307,13 @@ class EH_Rabi:
 
 					plt.cla()
 					plt.title("Qubit Time Rabi")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(tau_sweep_abs, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Rabi Time [ns]")
@@ -465,13 +465,13 @@ class EH_Rabi:
 				if live_plot:
 					plt.cla()
 					plt.title("Qubit Power Rabi")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(rabi_amp_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(rabi_amp_sweep_abs, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(rabi_amp_sweep_abs, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Rabi Amplitude [V]")
@@ -1299,13 +1299,13 @@ class EH_Rabi:
 				if live_plot:
 					plt.cla()
 					plt.title(r"Qubit e-f Spectroscopy")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot((ef_freq_sweep) / u.MHz, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot((ef_freq_sweep) / u.MHz, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot((ef_freq_sweep) / u.MHz, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("ef Frequency [MHz]")
@@ -1484,13 +1484,13 @@ class EH_Rabi:
 				if live_plot:
 					plt.cla()
 					plt.title("Qubit e-f Time Rabi")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(tau_sweep_abs, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Rabi Time [ns]")
@@ -1657,13 +1657,13 @@ class EH_Rabi:
 				if live_plot:
 					plt.cla()
 					plt.title("Qubit e-f Power Rabi")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(rabi_amp_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(rabi_amp_sweep_abs, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(rabi_amp_sweep_abs, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Rabi Amplitude [V]")
@@ -1830,13 +1830,13 @@ class EH_Rabi:
 				if live_plot:
 					plt.cla()
 					plt.title("Residual e-state Time Rabi")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(tau_sweep_abs, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Rabi Time [ns]")

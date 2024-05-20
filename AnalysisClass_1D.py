@@ -151,15 +151,15 @@ class AH_exp1D:
 			plt.title(expt_dataset.attrs['long_name'])
 			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		return res_freq
@@ -261,15 +261,15 @@ class AH_exp1D:
 			plt.title(expt_dataset.attrs['long_name'])
 			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 			if expt_dataset.coords[coord_key_x].attrs['units'] == 'V':
@@ -367,15 +367,15 @@ class AH_exp1D:
 			plt.title(expt_dataset.attrs['long_name'])
 			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		# find pi pulse
@@ -455,15 +455,15 @@ class AH_exp1D:
 			plt.title(expt_dataset.attrs['long_name'])
 			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		return int(qubit_T1.item()) # json takes int
@@ -541,15 +541,15 @@ class AH_exp1D:
 			plt.title(expt_dataset.attrs['long_name'])
 			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		return int(qubit_T2.item()) # json only takes int

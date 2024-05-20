@@ -230,13 +230,13 @@ class EH_RR: # sub
 				if live_plot:
 					plt.cla()
 					plt.title("Resonator spectroscopy")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot(res_freq_sweep, np.unwrap(np.angle(I + 1j * Q)), ".")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot(res_freq_sweep, np.abs(I + 1j * Q), ".")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot(res_freq_sweep, I, ".")
 						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("Frequency [MHz]")
@@ -419,15 +419,15 @@ class EH_RR: # sub
 				if live_plot:
 					plt.cla()
 					plt.title("Resonator spectroscopy")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.plot((res_freq_sweep) / u.MHz, np.unwrap(np.angle(Ig + 1j * Qg)), ".", label="Ground")
 						plt.plot((res_freq_sweep) / u.MHz, np.unwrap(np.angle(Ie + 1j * Qe)), ".", label="Excited")
 						plt.ylabel("Signal Phase [rad]")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.plot((res_freq_sweep) / u.MHz, np.abs(Ig + 1j * Qg), ".", label="Ground")
 						plt.plot((res_freq_sweep) / u.MHz, np.abs(Ie + 1j * Qe), ".", label="Excited")
 						plt.ylabel("Signal Amplitude [V]")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.plot((res_freq_sweep) / u.MHz, Ig, ".", label="Ground")
 						plt.plot((res_freq_sweep) / u.MHz, Ie, ".", label="Excited")
 						plt.ylabel("Signal I Quadrature [V]")
@@ -1084,8 +1084,8 @@ class EH_RR: # sub
 				
 				# Plot results
 				if live_plot:
-					if data_process_method is not 'SNR':
-						print(r'data_process_method is not SNR. Abort...')
+					if data_process_method != 'SNR':
+						print(r'data_process_method != SNR. Abort...')
 						return machine, None
 
 					plt.cla()

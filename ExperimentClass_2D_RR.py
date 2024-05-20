@@ -306,11 +306,11 @@ class EH_RR:
 				
 				if live_plot:
 					plt.title("Readout Pulse Optimization")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.pcolormesh(res_amp_sweep_abs, res_duration_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), cmap="seismic")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.pcolormesh(res_amp_sweep_abs, res_duration_sweep_abs, np.abs(I + 1j * Q), cmap="seismic")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.pcolormesh(res_amp_sweep_abs, res_duration_sweep_abs, I, cmap="seismic")
 					plt.xlabel("Readout Pulse Amplitude [V]")
 					plt.ylabel("Readout Pulse Duration [ns]")

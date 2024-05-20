@@ -122,11 +122,11 @@ class EH_SWAP:
 				if live_plot:
 					plt.cla()
 
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), cmap="seismic")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.abs(I + 1j * Q), cmap="seismic")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, I, cmap="seismic")
 
 					plt.title("SWAP Spectroscopy")
@@ -303,11 +303,11 @@ class EH_SWAP:
 				if live_plot:
 					plt.cla()
 
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.transpose(np.unwrap(np.angle(I + 1j * Q))), cmap="seismic")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.transpose(np.abs(I + 1j * Q)), cmap="seismic")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.pcolormesh(ff_sweep_abs, tau_sweep_abs, np.transpose(I), cmap="seismic")
 
 					plt.title("SWAP Spectroscopy")
