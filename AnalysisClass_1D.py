@@ -149,7 +149,7 @@ class AH_exp1D:
 			expt_dataset[data_process_method].plot(x=coord_key_x, marker = '.')
 			plt.axvline(x=(res_freq))
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
 			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
@@ -259,7 +259,7 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
 			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
@@ -365,7 +365,7 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
 			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
@@ -417,7 +417,8 @@ class AH_exp1D:
 		Returns:
 			qubit_T1 (int): Could directly pass to machine.
 		"""
-
+		
+		coord_key_x = None
 
 		y = expt_dataset[data_process_method].values
 		
@@ -453,7 +454,7 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
 			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
@@ -539,7 +540,7 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
 			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")

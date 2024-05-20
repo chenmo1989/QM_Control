@@ -382,7 +382,7 @@ class AH_exp2D:
 			drop=True)
 
 		# Find the extrema value in the subset
-		if extrema_type == 'min'
+		if extrema_type == 'min':
 			min_value = subset[data_process_method].min()
 		else:
 			min_value = subset[data_process_method].max()

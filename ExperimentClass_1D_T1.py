@@ -75,7 +75,7 @@ class EH_T1:
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		
+
 		# Simulate or execute #
 		if to_simulate:
 			simulation_config = SimulationConfig(duration = simulation_len)
@@ -164,7 +164,9 @@ save(n, n_st)"""
 
 
 	def TLS_T1(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False,  data_process_method = 'I'):
-		
+
+		config = build_config(machine)
+
 		if cd_time_TLS is None:
 			cd_time_TLS = cd_time_qubit
 
@@ -215,9 +217,6 @@ save(n, n_st)"""
 				Q_st.buffer(len(tau_sweep)).average().save("Q")
 				n_st.save("iteration")
 
-		#  Open Communication with the QOP  #
-		config = build_config(machine)
-
 		# Simulate or execute #
 		if to_simulate:
 			simulation_config = SimulationConfig(duration = simulation_len)
@@ -243,7 +242,6 @@ save(n, n_st)"""
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				#time.sleep(0.05)
 
 				if live_plot:
 					plt.cla()
@@ -262,7 +260,7 @@ save(n, n_st)"""
 
 			# fetch all data after live-updating
 			timestamp_finished = datetime.datetime.now()
-			I, Q, _ = results.fetch_all()
+			I, Q, iteration = results.fetch_all()
 			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 
@@ -278,10 +276,27 @@ save(n, n_st)"""
 			)
 			
 			expt_name = 'tls_T1'
-			expt_long_name = 'TLS T1 (swap)'
+			expt_long_name = r'TLS T1 (swap)'
 			expt_qubits = [machine.qubits[qubit_index].name]
-			expt_TLS = ['t'+TLS_index] # use t0, t1, t2, ...
-			expt_sequence = """"""
+			expt_TLS = ['t'+str(TLS_index)] # use t0, t1, t2, ...
+			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
+	with for_(*from_array(tau, tau_sweep)):
+		play("pi", machine.qubits[qubit_index].name)
+		align()
+		square_TLS_swap[0].run()
+		wait(tau, machine.flux_lines[qubit_index].name)
+		square_TLS_swap[0].run()
+		align()
+		readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+		wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
+		save(I, I_st)
+		save(Q, Q_st)
+		align()
+		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
+		wait(cd_time_qubit * u.ns, machine.flux_lines[qubit_index].name)
+		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
+		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
+	save(n, n_st)"""
 
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
