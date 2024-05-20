@@ -781,8 +781,6 @@ class EH_Rabi:
 			expt_dataset
 		"""
 
-		config = build_config(machine)
-
 		if cd_time_TLS is None:
 			cd_time_TLS = cd_time_qubit
 
@@ -791,12 +789,20 @@ class EH_Rabi:
 		TLS_if_sweep = np.floor(TLS_if_sweep)
 
 		if np.max(abs(TLS_if_sweep)) > 400E6: # check if parameters are within hardware limit
-			print("TLS if range > 400MHz")
-			return machine, None
+			print("TLS if range > 400MHz. Setting the octave freq. Consider calibrate octave.")
+			machine.octaves[0].LO_sources[1].LO_frequency = int(TLS_freq_sweep.mean()) - 50E6
+			qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
+			TLS_if_sweep = TLS_freq_sweep - qubit_lo
+			TLS_if_sweep = np.floor(TLS_if_sweep)
 
 		# Update the hardware parameters to TLS of interest
 		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
 		machine.qubits[qubit_index].hardware_parameters.pi_amp_tls = machine.qubits[qubit_index].pi_amp_tls[TLS_index]
+
+		config = build_config(machine)
+
+		def update_if_freq(new_if_freq):
+			config["elements"][machine.qubits[qubit_index].name]["intermediate_frequency"] = new_if_freq
 
 		# fLux pulse baking for SWAP
 		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
@@ -812,6 +818,7 @@ class EH_Rabi:
 			return pulse_segments
 
 		square_TLS_swap = baked_swap_waveform(flux_waveform)
+		update_if_freq(50E6) # change if frequency so it's not f_01 - LO, which is out of range.
 
 		with program() as TLS_freq_prog:
 			[I,Q,n,I_st,Q_st,n_st] = declare_vars()
@@ -858,9 +865,9 @@ class EH_Rabi:
 			job = qm.execute(TLS_freq_prog)
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
-			
+
 			# Live plotting
-		    if live_plot:
+			if live_plot:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [8, 4]
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure

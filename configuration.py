@@ -69,8 +69,6 @@ octave_config = octave_declaration(octaves)
 #####################
 # OPX configuration #
 #####################
-
-
 def build_config(quam: QuAM):
     x180_I_wf = []
     x180_Q_wf = []

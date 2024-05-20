@@ -42,7 +42,7 @@ class EH_Octave:
 		return
 
 
-	def calibration(self,machine, qubit_index, TLS_index = None, log_flag = True, calibration_flag = True, qubit_only = False):
+	def calibration(self, machine, qubit_index, TLS_index = None, log_flag = True, calibration_flag = True, qubit_only = False):
 		"""
 		calibrates octave, using parameters saved in machine
 		:param machine: must provide
@@ -55,25 +55,31 @@ class EH_Octave:
 		:return: machine
 		"""
 		config = build_config(machine)
-		qm = self.qmm.open_qm(config)
 
 		qubits = [machine.qubits[qubit_index].name]
 		resonators = [machine.resonators[qubit_index].name]
 
-		params = AutoCalibrationParams() # so I can calibrate for the pi pulse amplitude! Default is 125 mV, which is generally too high!
+		def update_if_freq(new_if_freq):
+			config["elements"][machine.qubits[qubit_index].name]["intermediate_frequency"] = new_if_freq
+
+		# find the if frequency (and amp only for the qubit) to be calibrated.
+		params = AutoCalibrationParams()  # so I can calibrate for the pi pulse amplitude! Default is 125 mV, which is generally too high!
+		if TLS_index is None:
+			params.if_amplitude = machine.qubits[qubit_index].pi_amp
+			if_freq_tmp = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
+		else:
+			# params.if_amplitude = machine.qubits[qubit_index].pi_amp_TLS[TLS_index]
+			if_freq_tmp = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
+			update_if_freq(if_freq_tmp)
+
+		qm = self.qmm.open_qm(config)
+
 		# potentially adding params = params as the last input for calibrate_element. But giving errors re: correction matrix out of range.
 		if calibration_flag:
-			if TLS_index is None:
-				params.if_amplitude = machine.qubits[qubit_index].pi_amp
-				if_freq_tmp = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
-			else:
-				#params.if_amplitude = machine.qubits[qubit_index].pi_amp_TLS[TLS_index]
-				if_freq_tmp = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
-
 			print("-" * 37 + " Octave calibration starts...")
 			for element in qubits:
 				#print("-" * 37 + f" Calibrates {element}")
-				print("-" * 37 + f" Calibrates {machine.qubits[qubit_index].name} for (LO, IF) = ({machine.octaves[0].LO_sources[1].LO_frequency/1E9:.3f} GHz, {(machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency)/1E6: .3f} MHz)")
+				print("-" * 37 + f" Calibrates {machine.qubits[qubit_index].name} for (LO, IF) = ({machine.octaves[0].LO_sources[1].LO_frequency/1E9:.3f} GHz, {if_freq_tmp/1E6: .3f} MHz)")
 				qm.calibrate_element(element, {machine.octaves[0].LO_sources[1].LO_frequency: (if_freq_tmp,)}, params = params)  # can provide many IFs in the tuple for the same LO
 			if qubit_only is not True:
 				# not calibrating for the readout_pulse_amp, because 1. the range would go > 0.5 and calibration fails; 2. 0.125 is not very far from real value.
