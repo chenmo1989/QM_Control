@@ -792,7 +792,7 @@ class AH_exp1D:
 		Returns:
 			number: [description]
 		"""
-
+		
 		return 0 if x == 0 else math.ceil(math.log2(x))
 
 

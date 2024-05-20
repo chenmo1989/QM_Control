@@ -44,7 +44,7 @@ def ham(dc_flux, wr, Ec, Ej, c, phi0, g, output_flag=1):
     # Hamiltonian as a function of flux
     for k in range(np.size(dc_flux)):
         H = wr * a.dag() * a + (np.sqrt(8 * Ec * Ej * np.abs(
-            np.cos(phi_flux_rr(dc_flux[k], c,
+            np.cos(_phi_flux_rr(dc_flux[k], c,
                                     phi0)))) - Ec) * b.dag() * b - Ec / 2 * b.dag() * b.dag() * b * b + g * (
                     a * b.dag() + a.dag() * b)
         w, v = H.eigenstates()  # eigenenergies and states. Already normalized.
@@ -64,7 +64,7 @@ def ham(dc_flux, wr, Ec, Ej, c, phi0, g, output_flag=1):
     return freq_sys
 
 
-def phi_flux_rr(dc_flux, c, phi0):
+def _phi_flux_rr(dc_flux, c, phi0):
     """
     linear mapping function from dc flux voltage to dc magnetic flux
     magnetic flux = 2 * np.pi * c * dc_flux + phi0

@@ -342,7 +342,7 @@ class AH_exp2D:
         # Hamiltonian as a function of flux
         for k in range(np.size(dc_flux)):
             H = wr * a.dag() * a + (np.sqrt(8 * Ec * Ej * np.abs(
-                np.cos(self.phi_flux_rr(dc_flux[k], c, phi0)))) - Ec) * b.dag() * b - Ec / 2 * b.dag() * b.dag() * b * b + g * (
+                np.cos(self._phi_flux_rr(dc_flux[k], c, phi0)))) - Ec) * b.dag() * b - Ec / 2 * b.dag() * b.dag() * b * b + g * (
                             a * b.dag() + a.dag() * b)
             w, v = H.eigenstates() # eigenenergies and states. Already normalized.
 
@@ -361,7 +361,7 @@ class AH_exp2D:
         return freq_sys
 
 
-    def phi_flux_rr(self,dc_flux, c, phi0):
+    def _phi_flux_rr(self,dc_flux, c, phi0):
         """
         linear mapping function from dc flux voltage to dc magnetic flux
         magnetic flux = 2 * np.pi * c * dc_flux + phi0
@@ -373,3 +373,21 @@ class AH_exp2D:
             the magnetic flux
         """
         return 2 * np.pi * c * dc_flux + phi0
+
+
+
+    def _next_power_of_2(self, x):
+            """Auxiliary function to find the next power of 2.
+            
+            Helpful in performing fft to turn Time into Frequency.
+            Currently only used in self.ramsey.
+            
+            Args:
+                x ([type]): [description]
+            
+            Returns:
+                number: [description]
+            """
+            
+            return 0 if x == 0 else math.ceil(math.log2(x))
+
