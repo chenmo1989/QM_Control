@@ -339,7 +339,24 @@ class AH_exp2D:
 		return fft_dataset
 
 
-	def SWAP_find_iswap(self, expt_dataset, flux_range, interaction_time_range, to_plot = True, data_process_method = 'I'):
+	def SWAP_find_iswap(self, expt_dataset, flux_range, interaction_time_range, to_plot = True, data_process_method = 'I', extrema_type = 'min'):
+		"""Find the iswap gate level and length from the 2D SWAP data.
+		
+		Require tuple input of flux_range = (flux_min, flux_max), interaction_time_range = (interaction_time_min, interaction_time_max).
+		The corresponding regime in expt_dataset will be selected, and the flux, interaction_time will be found that gives min/max value in expt_dataset[data_process_method].
+		Make sure there is only one TLS involved in the region, and the iswap corresponds to a min/max defined by `extrema_type'.
+		
+		Args:
+			expt_dataset ([type]): [description]
+			flux_range (tuple): tuple of (flux_min, flux_max)
+			interaction_time_range (tuple): tuple of (interaction_time_min, interaction_time_max)
+			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): [description] (default: `'I'`)
+			extrema_type (str): 'min' or 'max'. (default: `'min'`)
+		
+		Returns:
+			[type]: [description]
+		"""
 
 		flux_min, flux_max = flux_range
 		interaction_time_min, interaction_time_max = interaction_time_range
@@ -364,8 +381,11 @@ class AH_exp2D:
 			((expt_dataset.coords[coord_key_time] >= interaction_time_min) & (expt_dataset.coords[coord_key_time] <= interaction_time_max)),
 			drop=True)
 
-		# Find the minimum value in the subset
-		min_value = subset[data_process_method].min()
+		# Find the extrema value in the subset
+		if extrema_type == 'min'
+			min_value = subset[data_process_method].min()
+		else:
+			min_value = subset[data_process_method].max()
 		# Pick out the DataArray with the minimum value
 		min_DataArray = subset[data_process_method].where(subset[data_process_method] == min_value, drop=True)
 

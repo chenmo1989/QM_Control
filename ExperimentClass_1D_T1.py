@@ -163,30 +163,10 @@ save(n, n_st)"""
 			return machine, expt_dataset
 
 
-	def TLS_T1(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
-		"""
-		TLS T1 using SWAP with the transmon to prepare the excited state
-		sequence is qubit pi - SWAP - wait - SWAP - qubit readout
+	def TLS_T1(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False,  data_process_method = 'I'):
 		
-		:param machine
-		:param tau_sweep_abs: in ns!
-		:param qubit_index:
-		:param TLS_index:
-		:param n_avg:
-		:param cd_time:
-		:param cd_time_TLS:
-		:param to_simulate:
-		:param simulation_len:
-		:param final_plot:
-		:return:
-			machine
-			tau_sweep_abs
-			sig_amp
-		"""
 		if cd_time_TLS is None:
 			cd_time_TLS = cd_time_qubit
-
-		
 
 		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
 		swap_amp = machine.flux_lines[qubit_index].iswap.level[TLS_index]
@@ -220,15 +200,16 @@ save(n, n_st)"""
 					square_TLS_swap[0].run()
 					align()
 					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
 					save(I, I_st)
 					save(Q, Q_st)
 					align()
-					wait(cd_time_qubit * u.ns, machine.flux_lines[qubit_index].name)
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					wait(cd_time_qubit * u.ns, machine.flux_lines[qubit_index].name)
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 				save(n, n_st)
+
 			with stream_processing():
 				I_st.buffer(len(tau_sweep)).average().save("I")
 				Q_st.buffer(len(tau_sweep)).average().save("Q")
@@ -236,7 +217,7 @@ save(n, n_st)"""
 
 		#  Open Communication with the QOP  #
 		config = build_config(machine)
-		
+
 		# Simulate or execute #
 		if to_simulate:
 			simulation_config = SimulationConfig(duration = simulation_len)
@@ -250,38 +231,69 @@ save(n, n_st)"""
 			# Get results from QUA program
 			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
 			# Live plotting
-			if final_plot is True:
+			if live_plot is True:
 				fig = plt.figure()
 				plt.rcParams['figure.figsize'] = [12, 8]
-				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure    while results.is_processing():
+				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
+
 			while results.is_processing():
 				# Fetch results
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
 				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
 				# Progress bar
 				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if final_plot:
+				#time.sleep(0.05)
+
+				if live_plot:
 					plt.cla()
-					plt.title("TLS T1")
-					plt.plot(tau_sweep_abs, np.sqrt(I**2 + Q**2), "b.")
+					plt.title("TLS T1 (swap)")
+					if data_process_method == 'Phase':
+						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method == 'Amplitude':
+						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method == 'I':
+						plt.plot(tau_sweep_abs, I, ".")
+						plt.ylabel("Signal I Quadrature [V]")
 					plt.xlabel("tau [ns]")
-					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.02)
+					plt.pause(0.5)
 
-		# save data
-		exp_name = 'T1'
-		qubit_name = 'Q' + str(qubit_index + 1) + "_TLS" + str(TLS_index + 1)
-		f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-		file_name = f_str + '.mat'
-		json_name = f_str + '_state.json'
-		savemat(os.path.join(tPath, file_name),
-				{"TLS_tau": tau_sweep_abs, "sig_amp": sig_amp, "sig_phase": sig_phase})
-		machine._save(os.path.join(tPath, json_name), flat_data=False)
+			# fetch all data after live-updating
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
 
-		return machine, expt_dataset
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+			    {
+			        "I": (["x"], I),
+			        "Q": (["x"], Q),
+			    },
+			    coords={
+			        "Relaxation_Time": (["x"], tau_sweep_abs),
+			    },
+			)
+			
+			expt_name = 'tls_T1'
+			expt_long_name = 'TLS T1 (swap)'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = ['t'+TLS_index] # use t0, t1, t2, ...
+			expt_sequence = """"""
+
+			# save data
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+
+			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
+				plt.cla()
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+
+			return machine, expt_dataset
 
 
 	def TLS_T1_driving(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
