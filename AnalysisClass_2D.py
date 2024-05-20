@@ -339,6 +339,51 @@ class AH_exp2D:
 		return fft_dataset
 
 
+	def SWAP_find_iswap(self, expt_dataset, flux_range, interaction_time_range, to_plot = True, data_process_method = 'I'):
+
+		flux_min, flux_max = flux_range
+	    interaction_time_min, interaction_time_max = interaction_time_range
+		
+		# Find the coordinate that contains 'Time'
+		coord_key_time = None
+		coord_key_other = None
+
+		for keys in expt_dataset.coords:
+			if 'Time' in keys:
+				coord_key_time = keys
+			else:
+				coord_key_other = keys
+
+		if coord_key_time is None:
+			print("No coordinate containing 'Time' found in the dataset.")
+			return None
+
+		# find the dimension name and corresponding axis index for 'Time'
+		dim_name_time = expt_dataset.coords[coord_key_time].dims[0] # x or y
+		dim_name_other = 'y' if dim_name_time == 'x' else 'x'
+		axis_index_time = expt_dataset[data_process_method].get_axis_num(dim_name_time)
+
+		flux_mask = (expt_dataset.coords[coord_key_other] >= flux_min) & (expt_dataset.coords[coord_key_other] <= flux_max)
+		interaction_time_mask = (expt_dataset.coords[coord_key_time] >= interaction_time_min) & (expt_dataset.coords[coord_key_time] <= interaction_time_max)
+
+		subset = expt_dataset.where(
+			((expt_dataset.coords[coord_key_other] >= flux_min) & (expt_dataset.coords[coord_key_other] <= flux_max)) & 
+			((expt_dataset.coords[coord_key_time] >= interaction_time_min) & (expt_dataset.coords[coord_key_time] <= interaction_time_max)),
+			drop=True)
+
+		# Find the minimum value in the subset
+		min_value = subset[data_process_method].min()
+
+		# Find the indices of the minimum value
+		min_index = subset[data_process_method].where(subset[data_process_method] == min_value, drop=True).squeeze()
+
+		# Extract the corresponding Fast_Flux and Interaction_Time values
+		min_fast_flux = subset.Fast_Flux.sel(x=min_index.x).item()
+		min_interaction_time = subset.Interaction_Time.sel(y=min_index.y).item()
+
+		return min_fast_flux, min_index
+
+
 	def ham(self, dc_flux, wr, Ec, Ej, c, phi0, g, output_flag = 1):
 		"""
 		The Jaynes-Cummings Hamiltonian, all in units of MHz
