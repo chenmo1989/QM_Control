@@ -709,7 +709,7 @@ class AH_exp1D:
 		L = np.size(x)
 		NFFT = int(2 * 2 ** self._next_power_of_2(L))
 		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
-		if expt_dataset.coords[coord_key_x].attrs['units'] is 'ns':
+		if expt_dataset.coords[coord_key_x].attrs['units'] == 'ns':
 			Freq = Freq * 1E9
 
 		Y = np.fft.fft(y - np.mean(y), NFFT) / L
