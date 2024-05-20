@@ -342,7 +342,7 @@ class AH_exp2D:
 	def SWAP_find_iswap(self, expt_dataset, flux_range, interaction_time_range, to_plot = True, data_process_method = 'I'):
 
 		flux_min, flux_max = flux_range
-	    interaction_time_min, interaction_time_max = interaction_time_range
+		interaction_time_min, interaction_time_max = interaction_time_range
 		
 		# Find the coordinate that contains 'Time'
 		coord_key_time = None
@@ -360,11 +360,6 @@ class AH_exp2D:
 
 		# find the dimension name and corresponding axis index for 'Time'
 		dim_name_time = expt_dataset.coords[coord_key_time].dims[0] # x or y
-		dim_name_other = 'y' if dim_name_time == 'x' else 'x'
-		axis_index_time = expt_dataset[data_process_method].get_axis_num(dim_name_time)
-
-		flux_mask = (expt_dataset.coords[coord_key_other] >= flux_min) & (expt_dataset.coords[coord_key_other] <= flux_max)
-		interaction_time_mask = (expt_dataset.coords[coord_key_time] >= interaction_time_min) & (expt_dataset.coords[coord_key_time] <= interaction_time_max)
 
 		subset = expt_dataset.where(
 			((expt_dataset.coords[coord_key_other] >= flux_min) & (expt_dataset.coords[coord_key_other] <= flux_max)) & 
@@ -373,15 +368,25 @@ class AH_exp2D:
 
 		# Find the minimum value in the subset
 		min_value = subset[data_process_method].min()
-
-		# Find the indices of the minimum value
-		min_index = subset[data_process_method].where(subset[data_process_method] == min_value, drop=True).squeeze()
+		# Pick out the DataArray with the minimum value
+		min_DataArray = subset[data_process_method].where(subset[data_process_method] == min_value, drop=True)
 
 		# Extract the corresponding Fast_Flux and Interaction_Time values
-		min_fast_flux = subset.Fast_Flux.sel(x=min_index.x).item()
-		min_interaction_time = subset.Interaction_Time.sel(y=min_index.y).item()
+		if dim_name_time == 'y':
+			iswap_flux = subset[coord_key_other].sel(x=min_DataArray.x).item()
+			iswap_time = subset[coord_key_time].sel(y=min_DataArray.y).item()
+		else:
+			iswap_flux = subset[coord_key_other].sel(y=min_DataArray.y).item()
+			iswap_time = subset[coord_key_time].sel(x=min_DataArray.x).item()
 
-		return min_fast_flux, min_index
+		if to_plot:
+			fig = plt.figure()
+			plt.rcParams['figure.figsize'] = [8, 4]
+			plt.cla()
+			subset[data_process_method].plot(x=coord_key_other, y=coord_key_time, cmap="seismic")
+			plt.plot(iswap_flux, iswap_time, 'o')
+			plt.show()
+		return iswap_flux, iswap_time
 
 
 	def ham(self, dc_flux, wr, Ec, Ej, c, phi0, g, output_flag = 1):
