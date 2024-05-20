@@ -358,9 +358,7 @@ class AH_exp2D:
 			print("No coordinate containing 'Time' found in the dataset.")
 			return None
 
-		# find the dimension name and corresponding axis index for 'Time'
-		dim_name_time = expt_dataset.coords[coord_key_time].dims[0] # x or y
-
+		# Find the subset in the specified flux and time range.
 		subset = expt_dataset.where(
 			((expt_dataset.coords[coord_key_other] >= flux_min) & (expt_dataset.coords[coord_key_other] <= flux_max)) & 
 			((expt_dataset.coords[coord_key_time] >= interaction_time_min) & (expt_dataset.coords[coord_key_time] <= interaction_time_max)),
@@ -372,12 +370,14 @@ class AH_exp2D:
 		min_DataArray = subset[data_process_method].where(subset[data_process_method] == min_value, drop=True)
 
 		# Extract the corresponding Fast_Flux and Interaction_Time values
-		if dim_name_time == 'y':
-			iswap_flux = subset[coord_key_other].sel(x=min_DataArray.x).item()
-			iswap_time = subset[coord_key_time].sel(y=min_DataArray.y).item()
-		else:
-			iswap_flux = subset[coord_key_other].sel(y=min_DataArray.y).item()
-			iswap_time = subset[coord_key_time].sel(x=min_DataArray.x).item()
+		iswap_flux = min_DataArray[coord_key_other].item()
+		iswap_time = min_DataArray[coord_key_time].item()
+
+		# keep to the 5th digit.
+		iswap_flux = np.floor(iswap_flux * 1E5) / 1E5
+
+		print(f"iswap flux level: {iswap_flux: .5f} [V]")
+		print(f"iswap flux length: {iswap_time: .0f} [ns]")
 
 		if to_plot:
 			fig = plt.figure()
