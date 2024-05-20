@@ -188,10 +188,10 @@ class EH_SWAP:
 			return machine, expt_dataset
 
 
-	def swap_fine(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True, live_plot = False, data_process_method = 'I'):
+	def swap(self, machine, tau_sweep_abs, ff_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate=False, simulation_len=3000, final_plot=True, live_plot = False, data_process_method = 'I'):
 		"""Run 2D qubit SWAP spectroscopy, sweeping fast flux amplitude and duration. 1ns time resolution.
 		
-		Note that time resolution is 1ns with baking, hence the name `fine`. Allows tau < 16ns.
+		Note that time resolution is 1ns with baking. Allows tau < 16ns. (Used to be called `swap_fine`)
 		
 		Args:
 			machine ([type]): [description]

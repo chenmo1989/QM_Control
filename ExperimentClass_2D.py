@@ -6,7 +6,6 @@ written by Mo Chen in Oct. 2023
 from qm.qua import *
 from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
 from qm.octave import *
-#from qm.octave.octave_manager import ClockMode
 from configuration import *
 from scipy import signal
 from qm import SimulationConfig
