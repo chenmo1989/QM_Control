@@ -8,8 +8,6 @@ from qm.octave import *
 from configuration import *
 from scipy import signal
 from quam import QuAM
-from scipy.io import savemat
-from scipy.io import loadmat
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 from typing import Union
@@ -235,6 +233,22 @@ class AH_exp2D:
 
 
 	def SWAP_fft(self, expt_dataset, to_plot = True, data_process_method = 'I'):
+		"""Analyze the 2D SWAP data. Perform fft along Time axis, and visualize the vacuum-Rabi rate.
+		
+		xarray dataset does not have intrinsic support for fft. So here we find the `Time` axis and distinguish it from other axis.
+		Pad the data to next power of 2. And perform fft. 
+		The fft_result is then assembled into an xarray dataset as the return of this function.
+		
+		Args:
+			expt_dataset ([type]): [description]
+			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): [description] (default: `'I'`)
+		
+		Returns:
+			[type]: [description]
+		"""
+
+
 		# Find the coordinate that contains 'Time'
 		coord_key_time = None
 		coord_key_other = None

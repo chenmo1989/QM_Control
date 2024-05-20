@@ -8,8 +8,6 @@ from qm.octave import *
 from configuration import *
 from scipy import signal
 from quam import QuAM
-from scipy.io import savemat
-from scipy.io import loadmat
 from scipy.optimize import curve_fit, minimize
 from scipy.signal import savgol_filter
 #from qutip import *
@@ -771,6 +769,8 @@ class AH_exp1D:
 		Returns:
 			[type]: [description]
 		"""
+
+
 		if np.mean(Ig) < np.mean(Ie):
 			false_detections_var = np.sum(Ig > threshold) + np.sum(Ie < threshold)
 		else:
@@ -790,6 +790,7 @@ class AH_exp1D:
 		Returns:
 			number: [description]
 		"""
+		
 		
 		return 0 if x == 0 else math.ceil(math.log2(x))
 
