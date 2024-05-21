@@ -619,7 +619,7 @@ class EH_Rabi:
 					# eliminate charge accumulation, also initialize TLS
 					align()
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-					wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+					wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -713,7 +713,7 @@ class EH_Rabi:
 		# eliminate charge accumulation, also initialize TLS
 		align()
 		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-		wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
 			# save data
@@ -833,7 +833,7 @@ class EH_Rabi:
 					# eliminate charge accumulation, also initialize TLS
 					align()
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-					wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+					wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -928,7 +928,7 @@ with for_(n, 0, n < n_avg, n+1):
 		# eliminate charge accumulation, also initialize TLS
 		align()
 		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-		wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)
 """
 

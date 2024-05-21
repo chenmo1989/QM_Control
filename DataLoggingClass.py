@@ -131,6 +131,8 @@ class DataLoggingHandle:
 				expt_dataset.coords[keys].attrs['units'] = 'ns'
 			elif 'Length' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'ns'
+			elif 'Interval' in keys:
+				expt_dataset.coords[keys].attrs['units'] = 'ns'
 			elif 'Frequency' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'Hz'
 			elif 'Detuning' in keys:

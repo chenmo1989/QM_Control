@@ -282,7 +282,7 @@ class EH_Ramsey:
 					save(Q, Q_st)
 					align()
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-					wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+					wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 					reset_frame(machine.qubits[qubit_index].name) # to avoid phase accumulation
 				save(n, n_st)
 
@@ -376,7 +376,7 @@ with for_(n, 0, n < n_avg, n + 1):
 		save(Q, Q_st)
 		align()
 		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-		wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
+		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 		reset_frame(machine.qubits[qubit_index].name) # to avoid phase accumulation
 	save(n, n_st)"""
 

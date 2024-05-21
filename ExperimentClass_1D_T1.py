@@ -336,27 +336,29 @@ save(n, n_st)"""
 
 
 	def TLS_T1_drive(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 10E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
-		"""
-		TLS T1 using direct TLS driving to prepare the excited state
-		sequence is TLS pi - wait - SWAP - qubit readout
+		"""[TLS T1 measurement with TLS drive pulse.
 		
-		:param machine
-		:param tau_sweep_abs:
-		:param qubit_index:
-		:param TLS_index:
-		:param n_avg:
-		:param cd_time_qubit:
-		:param cd_time_TLS:
-		:param tPath:
-		:param f_str_datetime:
-		:param to_simulate:
-		:param simulation_len:
-		:param final_plot:
-		:param machine:
-		:return:
-			machine
-			tau_sweep_abs
-			sig_amp
+		TLS pi pulse -- delay -- iswap -- readout.
+		Opposite sign iswaps are applied at the end of the sequence, with delay of cd_time_qubit, cd_time_TLS after the opposite iswap. 
+		2 iswaps in total.
+		
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `10E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+			calibrate_octave (bool): [description] (default: `False`)
+		
+		Returns:
+			[type]: [description]
 		"""
 		
 		if cd_time_TLS is None:
@@ -430,7 +432,7 @@ save(n, n_st)"""
 					save(Q, Q_st)
 					align()
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-					wait(cd_time_TLS * u.ns)
+					wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 				save(n, n_st)
 
 			with stream_processing():
@@ -518,7 +520,7 @@ with for_(n, 0, n < n_avg, n + 1):
 		save(Q, Q_st)
 		align()
 		square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-		wait(cd_time_TLS * u.ns)
+		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
 			# save data
