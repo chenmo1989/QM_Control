@@ -175,6 +175,7 @@ class EH_Ramsey:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -389,6 +390,7 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 

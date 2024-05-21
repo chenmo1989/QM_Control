@@ -184,6 +184,7 @@ class EH_SWAP:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -371,6 +372,7 @@ class EH_SWAP:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 

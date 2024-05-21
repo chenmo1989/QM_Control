@@ -298,6 +298,7 @@ class EH_RR: # sub
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -1179,6 +1180,7 @@ class EH_RR: # sub
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("SNR")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			print(f"The optimal readout frequency is {res_freq_sweep[np.argmax(SNR)]} Hz (SNR={max(SNR)})")
 
@@ -1386,6 +1388,7 @@ class EH_RR: # sub
 				plt.rcParams['figure.figsize'] = [8, 4]
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("Readout Fidelity [%]")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			res_amp_opt = res_amp_abs_sweep[np.argmax(fidelity_vec)]
 			print(
@@ -1649,6 +1652,7 @@ class EH_RR: # sub
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("Readout Fidelity [%]")
 				plt.ylabel("Readout Fidelity [%]")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			res_len_opt = readout_len_sweep[np.argmax(fidelity_vec)]
 			print(
