@@ -446,8 +446,11 @@ class AH_exp1D:
 		out = mod.fit(y, pars, x = x)
 
 		qubit_T1 = out.params['decay'].value
-		
-		print(f"Qubit T1: {qubit_T1:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+		if qubit_T1 > 1E3:
+			print(f"Qubit T1: {qubit_T1/1E3:.1f} [us]")
+		else:
+			print(f"Qubit T1: {qubit_T1:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 		
 		if to_plot:
 			fig = plt.figure()

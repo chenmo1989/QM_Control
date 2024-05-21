@@ -438,9 +438,6 @@ save(n, n_st)"""
 				Q_st.buffer(len(tau_sweep)).average().save("Q")
 				n_st.save("iteration")
 
-		#  Open Communication with the QOP  #
-		config = build_config(machine)
-		
 		# Simulate or execute #
 		if to_simulate:
 			simulation_config = SimulationConfig(duration = simulation_len)
@@ -448,6 +445,11 @@ save(n, n_st)"""
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
+			# calibrates octave for the TLS pulse
+			if calibrate_octave:
+				machine = self.set_octave.calibration(machine, qubit_index, TLS_index=TLS_index, log_flag=True,
+													  calibration_flag=True, qubit_only=True)
+
 			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(t1_prog)
