@@ -785,15 +785,16 @@ class EH_Rabi:
 			cd_time_TLS = cd_time_qubit
 
 		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
-		TLS_if_sweep = TLS_freq_sweep - qubit_lo
-		TLS_if_sweep = np.floor(TLS_if_sweep)
+		tls_if_sweep = TLS_freq_sweep - qubit_lo
+		tls_if_sweep = np.floor(tls_if_sweep)
 
-		if np.max(abs(TLS_if_sweep)) > 400E6: # check if parameters are within hardware limit
-			print("TLS if range > 400MHz. Setting the octave freq. Consider calibrate octave.")
+		if np.max(abs(tls_if_sweep)) > 400E6: # check if parameters are within hardware limit
+			print("TLS if range > 400MHz. Setting the octave freq. Will calibrate octave.")
 			machine.octaves[0].LO_sources[1].LO_frequency = int(TLS_freq_sweep.mean()) - 50E6
 			qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
-			TLS_if_sweep = TLS_freq_sweep - qubit_lo
-			TLS_if_sweep = np.floor(TLS_if_sweep)
+			tls_if_sweep = TLS_freq_sweep - qubit_lo
+			tls_if_sweep = np.floor(tls_if_sweep)
+			calibrate_octave = True
 
 		# Update the hardware parameters to TLS of interest
 		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
@@ -825,7 +826,7 @@ class EH_Rabi:
 			df = declare(int)
 
 			with for_(n, 0, n < n_avg, n+1):
-				with for_(*from_array(df,TLS_if_sweep)):
+				with for_(*from_array(df,tls_if_sweep)):
 					update_frequency(machine.qubits[qubit_index].name, df)
 					play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name)
 					align()
@@ -843,8 +844,8 @@ class EH_Rabi:
 
 			with stream_processing():
 				n_st.save('iteration')
-				I_st.buffer(len(TLS_if_sweep)).average().save("I")
-				Q_st.buffer(len(TLS_if_sweep)).average().save("Q")
+				I_st.buffer(len(tls_if_sweep)).average().save("I")
+				Q_st.buffer(len(tls_if_sweep)).average().save("Q")
 
 		#####################################
 		#  Open Communication with the QOP  #
@@ -919,7 +920,7 @@ class EH_Rabi:
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = ['t'+str(TLS_index)] # use t0, t1, t2, ...
 			expt_sequence = """with for_(n, 0, n < n_avg, n+1):
-	with for_(*from_array(df,TLS_if_sweep)):
+	with for_(*from_array(df,tls_if_sweep)):
 		update_frequency(machine.qubits[qubit_index].name, df)
 		play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name)
 		align()
@@ -948,7 +949,7 @@ class EH_Rabi:
 			return machine, expt_dataset
 
 
-	def TLS_rabi_length(self, machine, tau_sweep_abs, qubit_index, TLS_index, pi_amp_rel = 1.0, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
+	def TLS_rabi_length(self, machine, tau_sweep_abs, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
 		"""TLS time Rabi experiment.
 		
 		TLS time Rabi experiment in 1D, sweeping length of the Rabi pulse. The state is then swapped to the qubit for readout.
@@ -992,16 +993,19 @@ class EH_Rabi:
 		tau_sweep_abs = tau_sweep * 4 # time in ns
 
 		# regular LO and if frequency, and their settings in configurations.
-		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
-		TLS_if_freq = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
+		tls_if_freq = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
 
 		config = build_config(machine)
 
-		if abs(TLS_if_freq) > 400E6: # check if parameters are within hardware limit
+		if abs(tls_if_freq) > 400E6: # check if parameters are within hardware limit
 			print("TLS if range > 400MHz. Setting the octave freq. Will calibrate octave.")
 			machine.octaves[0].LO_sources[1].LO_frequency = machine.qubits[qubit_index].f_tls[TLS_index] - 50E6
-			qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
-			TLS_if_sweep = 50E6
+			tls_if_freq = 50E6
+			calibrate_octave = True
+
+		if calibrate_octave:
+			machine.octaves[0].LO_sources[1].LO_frequency = machine.qubits[qubit_index].f_tls[TLS_index] - 50E6
+			tls_if_freq = 50E6
 
 		# Update the hardware parameters to TLS of interest
 		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
@@ -1011,12 +1015,6 @@ class EH_Rabi:
 
 		def update_if_freq(new_if_freq):
 			config["elements"][machine.qubits[qubit_index].name]["intermediate_frequency"] = new_if_freq
-
-		update_if_freq(TLS_if_freq)
-
-		# Update the hardware parameters to TLS of interest
-		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
-		machine.qubits[qubit_index].hardware_parameters.pi_amp_tls = machine.qubits[qubit_index].pi_amp_tls[TLS_index]
 
 		# fLux pulse baking for SWAP
 		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
@@ -1032,15 +1030,16 @@ class EH_Rabi:
 			return pulse_segments
 
 		square_TLS_swap = baked_swap_waveform(flux_waveform)
+		update_if_freq(tls_if_freq)
 
 		with program() as TLS_rabi_prog:
 			[I,Q,n,I_st,Q_st,n_st] = declare_vars()
 			t = declare(int)
 
-			update_frequency(machine.qubits[qubit_index].name, TLS_if_freq) # important, otherwise will use the if in configuration, calculated from f_01
+			update_frequency(machine.qubits[qubit_index].name, tls_if_freq) # important, otherwise will use the if in configuration, calculated from f_01
 			with for_(n, 0, n < n_avg, n+1):
 				with for_(*from_array(t,tau_sweep)):
-					play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name, duration = t) # clock cycles
+					play('pi_tls', machine.qubits[qubit_index].name, duration = t) # clock cycles
 					align()
 					square_TLS_swap[0].run()
 					align()
@@ -1132,10 +1131,10 @@ class EH_Rabi:
 			expt_long_name = 'TLS Time Rabi'
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = ['t'+str(TLS_index)] # use t0, t1, t2, ...
-			expt_sequence = """update_frequency(machine.qubits[qubit_index].name, TLS_if_freq) # important, otherwise will use the if in configuration, calculated from f_01
+			expt_sequence = """update_frequency(machine.qubits[qubit_index].name, tls_if_freq) # important, otherwise will use the if in configuration, calculated from f_01
 with for_(n, 0, n < n_avg, n+1):
 	with for_(*from_array(t,tau_sweep)):
-		play('pi_tls' * amp(pi_amp_rel), machine.qubits[qubit_index].name, duration = t) # clock cycles
+		play('pi_tls', machine.qubits[qubit_index].name, duration = t) # clock cycles
 		align()
 		square_TLS_swap[0].run()
 		align()
@@ -1160,152 +1159,6 @@ with for_(n, 0, n < n_avg, n+1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')				
-
-			return machine, expt_dataset
-
-
-	def TLS_rabi_amp(self, machine, rabi_amp_sweep_rel, qubit_index, TLS_index, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I'):
-		"""TLS power Rabi experiment.
-		
-		TLS power Rabi experiment in 1D, sweeping amplitude of Rabi pulse, typically to calibrate a TLS pi pulse. The TLS state is SWAPed to qubit for readout.
-		SWAP uses the iswap defined in machine.flux_lines[qubit_index].iswap.length/level[TLS_index];
-		TLS pulse is a square wave defined with machine.qubits[qubit_index].pi_length_tls[TLS_index]. These TLS pulse parameters will be passed to hardware_parameters first.
-		Note that the input argument is in relative amplitude, and return is in absolute amplitude.
-		
-		Args:
-			machine ([type]): [description]
-			rabi_amp_sweep_rel ([type]): Relative amplitude, based on machine.qubits[qubit_index].pi_amp_tls[TLS_index]
-			qubit_index ([type]): [description]
-			TLS_index ([type]): [description]
-			n_avg (number): [description] (default: `1E3`)
-			cd_time_qubit (number): [description] (default: `20E3`)
-			cd_time_TLS ([type]): [description] (default: `None`)
-			to_simulate (bool): [description] (default: `False`)
-			simulation_len (number): [description] (default: `1000`)
-			final_plot (bool): [description] (default: `True`)
-			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `I`)
-		
-		Returns:
-			machine
-			expt_dataset
-		"""
-
-		if cd_time_TLS is None:
-			cd_time_TLS = cd_time_qubit
-		
-
-		# important, need to update if for qua program
-		TLS_if = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
-
-		# Update the hardware parameters to TLS of interest
-		machine.qubits[qubit_index].hardware_parameters.pi_length_tls = machine.qubits[qubit_index].pi_length_tls[TLS_index]
-		machine.qubits[qubit_index].hardware_parameters.pi_amp_tls = machine.qubits[qubit_index].pi_amp_tls[TLS_index]
-
-		if max(abs(rabi_amp_sweep_rel)) > 2:
-			print("some relative amps > 2, removed from experiment run")
-			rabi_amp_sweep_rel = rabi_amp_sweep_rel[abs(rabi_amp_sweep_rel) < 2]
-		rabi_amp_sweep_abs = rabi_amp_sweep_rel * machine.qubits[qubit_index].hardware_parameters.pi_amp_tls # actual rabi amplitude
-		if max(abs(rabi_amp_sweep_abs)) > 0.5:
-			print("some abs amps > 0.5, removed from experiment run")
-			rabi_amp_sweep_rel = rabi_amp_sweep_rel[abs(rabi_amp_sweep_abs) < 0.5]
-			rabi_amp_sweep_abs = rabi_amp_sweep_abs[abs(rabi_amp_sweep_abs) < 0.5]
-
-		# fLux pulse baking for SWAP
-		swap_length = machine.flux_lines[qubit_index].iswap.length[TLS_index]
-		swap_amp = machine.flux_lines[qubit_index].iswap.level[TLS_index]
-		flux_waveform = np.array([swap_amp] * swap_length)
-
-		def baked_swap_waveform(waveform):
-			pulse_segments = []  # Stores the baking objects
-			# Create the different baked sequences, each one corresponding to a different truncated duration
-			with baking(config, padding_method="right") as b:
-				b.add_op("flux_pulse", machine.flux_lines[qubit_index].name, waveform.tolist())
-				b.play("flux_pulse", machine.flux_lines[qubit_index].name)
-				pulse_segments.append(b)
-			return pulse_segments
-
-		square_TLS_swap = baked_swap_waveform(flux_waveform)
-
-		with program() as tls_power_rabi:
-			[I, Q, n, I_st, Q_st, n_st] = declare_vars()
-			a = declare(fixed)
-			
-			update_frequency(machine.qubits[qubit_index].name, TLS_if) # important, otherwise will use the if in configuration, calculated from f_01
-			with for_(n, 0, n < n_avg, n + 1):
-				with for_(*from_array(a, rabi_amp_sweep_rel)):
-					play("pi_tls" * amp(a), machine.qubits[qubit_index].name)
-					align()
-					square_TLS_swap[0].run()
-					align()
-					readout_rotated_macro(machine.resonators[qubit_index].name, I, Q)
-					align()
-					save(I, I_st)
-					save(Q, Q_st)
-					# eliminate charge accumulation, also initialize TLS
-					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
-					align()
-					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
-					wait(cd_time_TLS * u.ns, machine.resonators[qubit_index].name)
-				save(n, n_st)
-
-			with stream_processing():
-				I_st.buffer(len(rabi_amp_sweep_rel)).average().save("I")
-				Q_st.buffer(len(rabi_amp_sweep_rel)).average().save("Q")
-				n_st.save("iteration")
-
-		#  Open Communication with the QOP  #
-		config = build_config(machine)
-		if to_simulate:
-			simulation_config = SimulationConfig(duration=1000)  # in clock cycles
-			job = self.qmm.simulate(config, tls_power_rabi, simulation_config)
-			job.get_simulated_samples().con1.plot()
-			return machine, None
-		else:
-			qm = self.qmm.open_qm(config)
-			timestamp_created = datetime.datetime.now()
-			job = qm.execute(tls_power_rabi)
-			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
-
-			# Live plotting
-			if final_plot:
-				fig = plt.figure()
-				plt.rcParams['figure.figsize'] = [8, 4]
-				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
-
-			while results.is_processing():
-				# Fetch results
-				I, Q, iteration = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				sig_amp = np.sqrt(I ** 2 + Q ** 2)
-				sig_phase = np.angle(I + 1j * Q)
-				# Progress bar
-				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				if final_plot:
-					plt.cla()
-					plt.title("TLS power rabi")
-					plt.plot(rabi_amp_sweep_abs, sig_amp, "b.")
-					plt.xlabel("rabi amplitude [V]")
-					plt.ylabel("Signal Amplitude [V]")
-					plt.pause(0.02)
-
-			# fetch all data after live-updating
-			I, Q, iteration = results.fetch_all()
-			# Convert I & Q to Volts
-			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
-			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-			sig_amp = np.sqrt(I ** 2 + Q ** 2)
-			sig_phase = np.angle(I + 1j * Q)
-
-			# save data
-			exp_name = 'TLS_power_rabi'
-			qubit_name = 'Q' + str(qubit_index + 1) + 'TLS' + str(TLS_index+1)
-			f_str = qubit_name + '-' + exp_name + '-' + f_str_datetime
-			file_name = f_str + '.mat'
-			json_name = f_str + '_state.json'
-			savemat(os.path.join(tPath, file_name),
-					{"TLS_rabi_amplitude": rabi_amp_sweep_abs, "sig_amp": sig_amp, "sig_phase": sig_phase})
-			machine._save(os.path.join(tPath, json_name), flat_data=False)
 
 			return machine, expt_dataset
 

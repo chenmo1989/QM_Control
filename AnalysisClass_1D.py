@@ -397,6 +397,8 @@ class AH_exp1D:
 				rabi_pulse_length += rabi_period
 			print(f"rabi_pi_pulse: {rabi_pulse_length:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 			print(f"pi period: {rabi_period:.2f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			if method == "Decay":
+				print(f"T2rabi: {out.params[prefix + 'decay'].value:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 			return int(rabi_pulse_length.item())
 		else:
 			print("coordinate units not recognized.")
