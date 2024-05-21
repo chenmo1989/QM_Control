@@ -62,7 +62,7 @@
   "dc_flux[]_len": 7,
   "octaves[].name": ["octave1"],
   "octaves[].LO_sources[].name": [["LO1","LO2","LO3"]],
-  "octaves[].LO_sources[].LO_frequency": [[7183120679.0,5353019579.0,5000000000.0]],
+  "octaves[].LO_sources[].LO_frequency": [[7183120679.0,6249791158.0,5000000000.0]],
   "octaves[].LO_sources[].LO_source": [["internal","internal","internal"]],
   "octaves[].LO_sources[].output_mode": [["always_on","always_on","always_on"]],
   "octaves[].LO_sources[].gain": [[0,0,0]],

@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import lmfit
+import xarray as xr
 
 class AH_exp1D:
 	"""
@@ -512,7 +513,7 @@ class AH_exp1D:
 		Fs = 1 / delta  # Sampling frequency
 		L = np.size(x)
 		NFFT = int(2 * 2 ** self._next_power_of_2(L))
-		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2, endpoint=True)
 		Y = np.fft.fft(y - np.mean(y), NFFT) / L
 		DataFFT = abs(Y[0:(NFFT // 2)]) ** 2
 		index = np.argmax(DataFFT)
@@ -711,7 +712,7 @@ class AH_exp1D:
 		Fs = 1 / delta  # Sampling frequency
 		L = np.size(x)
 		NFFT = int(2 * 2 ** self._next_power_of_2(L))
-		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2, endpoint=True)
 		if expt_dataset.coords[coord_key_x].attrs['units'] == 'ns':
 			Freq = Freq * 1E9
 
@@ -736,7 +737,7 @@ class AH_exp1D:
 			fig = plt.figure()
 			plt.rcParams['figure.figsize'] = [6, 3]
 			plt.cla()
-			fft_dataset['FFT_Result'].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')	
+			fft_dataset['FFT_Result'].plot(x=list(fft_dataset.coords.keys())[0], marker = '.')
 
 		return fft_dataset
 

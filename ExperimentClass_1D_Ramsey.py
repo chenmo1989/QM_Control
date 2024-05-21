@@ -219,7 +219,6 @@ class EH_Ramsey:
 		tau_sweep = tau_sweep_cc.astype(int) # clock cycles, used for experiments
 		tau_sweep_abs = tau_sweep * 4 # time in ns
 
-
 		# regular LO and if frequency, and their settings in configurations.
 		tls_if_freq = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
 
@@ -265,7 +264,7 @@ class EH_Ramsey:
 			t = declare(int)
 			phase = declare(fixed)  # QUA variable for dephasing the second pi/2 pulse (virtual Z-rotation)
 
-			update_frequency(machine.qubits[qubit_index].name, TLS_if) # important, otherwise will use the if in configuration, calculated from f_01
+			update_frequency(machine.qubits[qubit_index].name, tls_if_freq) # important, otherwise will use the if in configuration, calculated from f_01
 			with for_(n, 0, n < n_avg, n + 1):
 				with for_(*from_array(t, tau_sweep)):
 					assign(phase, Cast.mul_fixed_by_int(detuning * 1e-9, 4 * t))
@@ -298,6 +297,11 @@ class EH_Ramsey:
 			job.get_simulated_samples().con1.plot()
 			return machine, None
 		else:
+			# calibrates octave for the TLS pulse
+			if calibrate_octave:
+				machine = self.set_octave.calibration(machine, qubit_index, TLS_index=TLS_index, log_flag=True,
+													  calibration_flag=True, qubit_only=True)
+
 			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_ramsey)
@@ -354,7 +358,7 @@ class EH_Ramsey:
 			expt_long_name = 'TLS Ramsey'
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = ['t'+str(TLS_index)] # use t0, t1, t2, ...
-			expt_sequence = """update_frequency(machine.qubits[qubit_index].name, TLS_if) # important, otherwise will use the if in configuration, calculated from f_01
+			expt_sequence = """update_frequency(machine.qubits[qubit_index].name, tls_if_freq) # important, otherwise will use the if in configuration, calculated from f_01
 with for_(n, 0, n < n_avg, n + 1):
 	with for_(*from_array(t, tau_sweep)):
 		assign(phase, Cast.mul_fixed_by_int(detuning * 1e-9, 4 * t))
