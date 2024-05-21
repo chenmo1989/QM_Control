@@ -27,26 +27,28 @@ class EH_DD:
 		self.qmm = ref_to_qmm
 
 	def TLS_echo(self, machine, tau_sweep_abs, qubit_index, TLS_index, pi_over_2_phase = 'y', n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
-		"""
-		TLS echo in 1D.
-		pi/2_y - tau - pi_x - tau - pi/2_y
-
-		:param machine
-		:param tau_sweep: in clock cycle!
-		:param qubit_index:
-		:param pi_over_2_phase: 'x' / 'y'(default); apply pi/2 along x or y axis; pi pulse is always along x
-		:param TLS_index:
-		:param n_avg:
-		:param cd_time_qubit:
-		:param cd_time_TLS:
-		:param to_simulate:
-		:param simulation_len:
-		:param final_plot:
+		"""Run TLS echo experiment.
 		
-		:return:
-			machine
-			tau_sweep_abs: in ns. Note this is the spacing between pi pulses
-			sig_amp
+		[description]
+		
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			pi_over_2_phase (str): [description] (default: `'y'`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+			calibrate_octave (bool): [description] (default: `False`)
+		
+		Returns:
+			[type]: [description]
 		"""
 
 		if pi_over_2_phase not in ['x','y']:

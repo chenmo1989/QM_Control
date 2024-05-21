@@ -562,6 +562,86 @@ class AH_exp1D:
 		return int(qubit_T2.item()) # json only takes int
 
 
+	def T2(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
+		"""Fit to T2 relaxation curve, without oscillation.
+		
+		This function takes the amplitude in expt_dataset, fit it to a simple exponential model (with a constant offset), and returns the T1.
+		Todo: allow rotation angle, rather than just using amplitude of the signal.
+		
+		Args:
+			expt_dataset ([type]): [description]
+			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
+		
+		Returns:
+			qubit_T1 (int): Could directly pass to machine.
+		"""
+		
+		coord_key_x = None
+
+		y = expt_dataset[data_process_method].values
+		
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		x = expt_dataset.coords[coord_key_x].values
+
+		mod = lmfit.Model(self._stretched_exp)
+		pars = mod.make_params()
+		pars['decay'].set(value = x[-1]/2, min = 1, max = np.inf)
+		pars['amplitude'].set(value = 1, vary = False) # only the amplitude in Sine will vary
+		pars['exponent'].set(value = 2, min = 0, max = 6) # stretched exp, assuming gaussian noise
+
+		pars_decay = mod.guess(y - y[-1], x = x)
+
+		mod = mod + lmfit.models.LinearModel()
+		pars = mod.make_params()
+		pars['slope'].set(value = 0, vary = False) # flat background offset
+
+		for keys in pars_decay:
+			pars[keys] = pars_decay[keys]
+
+		out = mod.fit(y, pars, x = x)
+
+		qubit_T2 = out.params['decay'].value
+		qubit_T2_exponent = out.params["exponent"].value
+		print(f'Qubit T2*: {qubit_T2: .1f} [ns]')
+		
+		
+		if qubit_T1 > 1E3:
+			print(f'Qubit T2*: {qubit_T2/1E3: .1f} [us]')
+		else:
+			print(f'Qubit T2*: {qubit_T2: .1f} [ns]')
+		
+		print(f'Exponent n = {qubit_T2_exponent: .1f}')
+
+		if to_plot:
+			fig = plt.figure()
+			plt.rcParams['figure.figsize'] = [6, 3]
+			plt.cla()
+			plt.plot(x, y, '.')
+			plt.plot(x, out.best_fit, 'r--')
+
+			plt.title(expt_dataset.attrs['long_name'])
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+			if data_process_method == 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method == 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method == 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method == 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method == 'SNR':
+				plt.ylabel("SNR")
+
+		return int(qubit_T2.item()) # json takes int
+
+
 	def two_state_discriminator(self, expt_dataset, to_plot = True, to_print = True):
 		"""Discriminate the g, e state using a threshold.
 		
