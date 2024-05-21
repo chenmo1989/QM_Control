@@ -258,7 +258,30 @@ with for_(n, 0, n < n_avg, n + 1):
 
 
 	def TLS_CPMG(self, machine, tau_sweep_abs, qubit_index, TLS_index, pi_over_2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
-
+		"""Run TLS CPMG experiment. pi pulse # determined by N_CPMG.
+		
+		[description]
+		
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			TLS_index ([type]): [description]
+			pi_over_2_phase (str): [description] (default: `'y'`)
+			N_CPMG (number): [description] (default: `8`)
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			cd_time_TLS ([type]): [description] (default: `None`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+			calibrate_octave (bool): [description] (default: `False`)
+		
+		Returns:
+			[type]: [description]
+		"""
 		
 		if pi_over_2_phase not in ['x','y']:
 			print("pi_over_2_phase must be x or y. Abort...")
