@@ -562,7 +562,7 @@ class AH_exp1D:
 		return int(qubit_T2.item()) # json only takes int
 
 
-	def T2(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
+	def T2(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude', N_tau = 2):
 		"""Fit to T2 relaxation curve, without oscillation.
 		
 		This function takes the amplitude in expt_dataset, fit it to a stretched exponential model (with a constant offset), and returns the T2.
@@ -571,7 +571,8 @@ class AH_exp1D:
 			expt_dataset ([type]): [description]
 			to_plot (bool): [description] (default: `True`)
 			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
-		
+			N_tau (int): multiplication factor between tau and total sequence length. N_tau = 2 * N_CPMG. (default: 2, for echo)
+
 		Returns:
 			qubit_T2 (int): Could directly pass to machine.
 		"""
@@ -598,9 +599,9 @@ class AH_exp1D:
 
 		out = mod.fit(y, pars, x = x)
 
-		qubit_T2 = out.params['decay'].value
+		qubit_T2 = out.params['decay'].value * N_tau
 		qubit_T2_exponent = out.params["exponent"].value
-		
+
 		if qubit_T2 > 1E3:
 			print(f'Qubit T2*: {qubit_T2/1E3: .1f} [us]')
 		else:

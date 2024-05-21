@@ -257,7 +257,7 @@ with for_(n, 0, n < n_avg, n + 1):
 			return machine, expt_dataset
 
 
-	def TLS_CPMG(self, machine, tau_sweep, qubit_index, TLS_index, pi_over_2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
+	def TLS_CPMG(self, machine, tau_sweep_abs, qubit_index, TLS_index, pi_over_2_phase = 'y', N_CPMG = 8, n_avg = 1E3, cd_time_qubit = 20E3, cd_time_TLS = None, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'I', calibrate_octave = False):
 
 		
 		if pi_over_2_phase not in ['x','y']:
