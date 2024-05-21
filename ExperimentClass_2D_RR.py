@@ -12,14 +12,14 @@ from quam import QuAM
 from scipy.optimize import curve_fit, minimize
 #from qutip import *
 from typing import Union
-from macros import *
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
 import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
-import time
 import xarray as xr
+
 
 class EH_RR:
 	"""
@@ -306,11 +306,11 @@ class EH_RR:
 				
 				if live_plot:
 					plt.title("Readout Pulse Optimization")
-					if data_process_method is 'Phase':
+					if data_process_method == 'Phase':
 						plt.pcolormesh(res_amp_sweep_abs, res_duration_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), cmap="seismic")
-					elif data_process_method is 'Amplitude':
+					elif data_process_method == 'Amplitude':
 						plt.pcolormesh(res_amp_sweep_abs, res_duration_sweep_abs, np.abs(I + 1j * Q), cmap="seismic")
-					elif data_process_method is 'I':
+					elif data_process_method == 'I':
 						plt.pcolormesh(res_amp_sweep_abs, res_duration_sweep_abs, I, cmap="seismic")
 					plt.xlabel("Readout Pulse Amplitude [V]")
 					plt.ylabel("Readout Pulse Duration [ns]")

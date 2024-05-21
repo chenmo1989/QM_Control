@@ -4,14 +4,10 @@ AnalysisHandle
 written by Mo Chen in Oct. 2023
 """
 from qm.qua import *
-from qm import SimulationConfig, LoopbackInterface, generate_qua_script,QuantumMachinesManager
 from qm.octave import *
 from configuration import *
 from scipy import signal
-from qm.octave import QmOctaveConfig
 from quam import QuAM
-from scipy.io import savemat
-from scipy.io import loadmat
 from scipy.optimize import curve_fit, minimize
 from scipy.signal import savgol_filter
 #from qutip import *
@@ -25,6 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import lmfit
+import xarray as xr
 
 class AH_exp1D:
 	"""
@@ -153,17 +150,17 @@ class AH_exp1D:
 			expt_dataset[data_process_method].plot(x=coord_key_x, marker = '.')
 			plt.axvline(x=(res_freq))
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		return res_freq
@@ -263,17 +260,17 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 			if expt_dataset.coords[coord_key_x].attrs['units'] == 'V':
@@ -369,17 +366,17 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		# find pi pulse
@@ -401,6 +398,8 @@ class AH_exp1D:
 				rabi_pulse_length += rabi_period
 			print(f"rabi_pi_pulse: {rabi_pulse_length:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 			print(f"pi period: {rabi_period:.2f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			if method == "Decay":
+				print(f"T2rabi: {out.params[prefix + 'decay'].value:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 			return int(rabi_pulse_length.item())
 		else:
 			print("coordinate units not recognized.")
@@ -421,7 +420,8 @@ class AH_exp1D:
 		Returns:
 			qubit_T1 (int): Could directly pass to machine.
 		"""
-
+		
+		coord_key_x = None
 
 		y = expt_dataset[data_process_method].values
 		
@@ -446,8 +446,11 @@ class AH_exp1D:
 		out = mod.fit(y, pars, x = x)
 
 		qubit_T1 = out.params['decay'].value
-		
-		print(f"Qubit T1: {qubit_T1:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+		if qubit_T1 > 1E3:
+			print(f"Qubit T1: {qubit_T1/1E3:.1f} [us]")
+		else:
+			print(f"Qubit T1: {qubit_T1:.1f} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 		
 		if to_plot:
 			fig = plt.figure()
@@ -457,17 +460,17 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		return int(qubit_T1.item()) # json takes int
@@ -492,8 +495,6 @@ class AH_exp1D:
 		"""
 
 
-		y = expt_dataset[data_process_method].values
-		
 		# get the key for coordinate along x
 		coord_key = list(expt_dataset.coords.keys())
 		for key in coord_key:
@@ -501,6 +502,7 @@ class AH_exp1D:
 				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
 		    	
 		x = expt_dataset.coords[coord_key_x].values
+		y = expt_dataset[data_process_method].values
 
 		prefix = r"decay_"
 		mod = lmfit.models.SineModel() * lmfit.Model(self._stretched_exp, prefix = prefix) + lmfit.models.LinearModel()
@@ -514,10 +516,10 @@ class AH_exp1D:
 		Fs = 1 / delta  # Sampling frequency
 		L = np.size(x)
 		NFFT = int(2 * 2 ** self._next_power_of_2(L))
-		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2 + 1, endpoint=True)
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2, endpoint=True)
 		Y = np.fft.fft(y - np.mean(y), NFFT) / L
-		DataY = abs(Y[0:(NFFT // 2)]) ** 2
-		index = np.argmax(DataY)
+		DataFFT = abs(Y[0:(NFFT // 2)]) ** 2
+		index = np.argmax(DataFFT)
 		det = Freq[index]
 		amp = abs(max(y) - min(y)) / 2
 
@@ -544,20 +546,91 @@ class AH_exp1D:
 			plt.plot(x, out.best_fit, 'r--')
 
 			plt.title(expt_dataset.attrs['long_name'])
-			plt.xlabel(f"{coord_key_x} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
 
-			if data_process_method is 'Phase':
+			if data_process_method == 'Phase':
 				plt.ylabel("Signal Phase [rad]")
-			elif data_process_method is 'Amplitude':
+			elif data_process_method == 'Amplitude':
 				plt.ylabel("Signal Amplitude [V]")
-			elif data_process_method is 'I':
+			elif data_process_method == 'I':
 				plt.ylabel("Signal I Quadrature [V]")
-			elif data_process_method is 'Fidelity':
+			elif data_process_method == 'Fidelity':
 				plt.ylabel("Fidelity [%]")
-			elif data_process_method is 'SNR':
+			elif data_process_method == 'SNR':
 				plt.ylabel("SNR")
 
 		return int(qubit_T2.item()) # json only takes int
+
+
+	def T2(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude', N_tau = 2):
+		"""Fit to T2 relaxation curve, without oscillation.
+		
+		This function takes the amplitude in expt_dataset, fit it to a stretched exponential model (with a constant offset), and returns the T2.
+
+		Args:
+			expt_dataset ([type]): [description]
+			to_plot (bool): [description] (default: `True`)
+			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
+			N_tau (int): multiplication factor between tau and total sequence length. N_tau = 2 * N_CPMG. (default: 2, for echo)
+
+		Returns:
+			qubit_T2 (int): Could directly pass to machine.
+		"""
+		
+		coord_key_x = None
+
+		y = expt_dataset[data_process_method].values
+		
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		x = expt_dataset.coords[coord_key_x].values
+
+		mod = lmfit.Model(self._stretched_exp) + lmfit.models.LinearModel()
+		pars = mod.make_params()
+		pars['decay'].set(value = x[-1]/2, min = 1, max = np.inf)
+		pars['amplitude'].set(value = y[0] - y[-1], vary = False) # only the amplitude in Sine will vary
+		pars['exponent'].set(value = 2, min = 0, max = 6) # stretched exp, assuming gaussian noise
+		pars['slope'].set(value = 0, vary = False) # flat background offset
+		pars['intercept'].set(value = y[-1])
+
+		out = mod.fit(y, pars, x = x)
+
+		qubit_T2 = out.params['decay'].value * N_tau
+		qubit_T2_exponent = out.params["exponent"].value
+
+		if qubit_T2 > 1E3:
+			print(f'Qubit T2*: {qubit_T2/1E3: .1f} [us]')
+		else:
+			print(f'Qubit T2*: {qubit_T2: .1f} [ns]')
+		
+		print(f'Exponent n = {qubit_T2_exponent: .1f}')
+
+		if to_plot:
+			fig = plt.figure()
+			plt.rcParams['figure.figsize'] = [6, 3]
+			plt.cla()
+			plt.plot(x, y, '.')
+			plt.plot(x, out.best_fit, 'r--')
+
+			plt.title(expt_dataset.attrs['long_name'])
+			plt.xlabel(f"{expt_dataset.coords[coord_key_x].attrs['long_name']} [{expt_dataset.coords[coord_key_x].attrs['units']}]")
+
+			if data_process_method == 'Phase':
+				plt.ylabel("Signal Phase [rad]")
+			elif data_process_method == 'Amplitude':
+				plt.ylabel("Signal Amplitude [V]")
+			elif data_process_method == 'I':
+				plt.ylabel("Signal I Quadrature [V]")
+			elif data_process_method == 'Fidelity':
+				plt.ylabel("Fidelity [%]")
+			elif data_process_method == 'SNR':
+				plt.ylabel("SNR")
+
+		return int(qubit_T2.item()) # json takes int
 
 
 	def two_state_discriminator(self, expt_dataset, to_plot = True, to_print = True):
@@ -695,6 +768,54 @@ class AH_exp1D:
 		return angle.item(), threshold.item(), fidelity.item(), gg.item(), ge.item(), eg.item(), ee.item()
 
 
+	def fft(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
+		# get the key for coordinate along x
+		coord_key = list(expt_dataset.coords.keys())
+		for key in coord_key:
+			if len(expt_dataset.coords[key].dims) == 1:
+				coord_key_x = key # although this could be 'y', if the 1D data comes from a slice of 2D data.
+
+		if 'Time' not in coord_key_x:
+			print('Cannot find a Time coordinate in dataset. Abort...')
+			return None
+		    	
+		x = expt_dataset.coords[coord_key_x].values
+		y = expt_dataset[data_process_method].values
+
+		delta = abs(x[0] - x[1])
+		Fs = 1 / delta  # Sampling frequency
+		L = np.size(x)
+		NFFT = int(2 * 2 ** self._next_power_of_2(L))
+		Freq = Fs / 2 * np.linspace(0, 1, NFFT // 2, endpoint=True)
+		if expt_dataset.coords[coord_key_x].attrs['units'] == 'ns':
+			Freq = Freq * 1E9
+
+		Y = np.fft.fft(y - np.mean(y), NFFT) / L
+		FFT_Coeff = abs(Y[0:(NFFT // 2)]) ** 2
+
+		fft_dataset = xr.Dataset(
+			    {
+			        "FFT_Result": (["x"], FFT_Coeff),
+			    },
+			    coords={
+			        "FFT_Frequency": (["x"], Freq),
+			    },
+			)
+		
+		fft_dataset.attrs['name'] = "fft_" + expt_dataset.attrs['name']
+		fft_dataset.attrs['long_name'] = "FFT of " + expt_dataset.attrs['long_name']
+		fft_dataset.attrs['qubit'] = expt_dataset.attrs['qubit']
+		fft_dataset.attrs['TLS'] = expt_dataset.attrs['TLS']
+		
+		if to_plot:
+			fig = plt.figure()
+			plt.rcParams['figure.figsize'] = [6, 3]
+			plt.cla()
+			fft_dataset['FFT_Result'].plot(x=list(fft_dataset.coords.keys())[0], marker = '.')
+
+		return fft_dataset
+
+
 	def _stretched_exp(self, x, amplitude, decay, exponent):
 		"""Auxiliary function for stretched exponential fitting.
 		
@@ -726,6 +847,8 @@ class AH_exp1D:
 		Returns:
 			[type]: [description]
 		"""
+
+
 		if np.mean(Ig) < np.mean(Ie):
 			false_detections_var = np.sum(Ig > threshold) + np.sum(Ie < threshold)
 		else:
@@ -745,7 +868,8 @@ class AH_exp1D:
 		Returns:
 			number: [description]
 		"""
-
+		
+		
 		return 0 if x == 0 else math.ceil(math.log2(x))
 
 

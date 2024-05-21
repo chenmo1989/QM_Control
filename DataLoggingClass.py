@@ -62,7 +62,7 @@ class DataLoggingHandle:
 			if tls_index >0:
 				describ_text = describ_text + '-' + tls
 			else:
-				describ_text = describ_text + tls_index
+				describ_text = describ_text + tls
 		expt_dataset.attrs['description'] = "{}_{}".format(describ_text, expt_dataset.attrs['name'])
 		return expt_dataset
 
@@ -130,6 +130,8 @@ class DataLoggingHandle:
 			elif 'Duration' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'ns'
 			elif 'Length' in keys:
+				expt_dataset.coords[keys].attrs['units'] = 'ns'
+			elif 'Interval' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'ns'
 			elif 'Frequency' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'Hz'

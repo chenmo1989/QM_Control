@@ -18,13 +18,13 @@ from scipy.optimize import curve_fit, minimize
 from scipy.signal import savgol_filter
 #from qutip import *
 from typing import Union
-from macros import *
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
 import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
 
 # improt experiments
 from ExperimentClass_1D_RR import EH_RR
@@ -33,6 +33,7 @@ from ExperimentClass_1D_T1 import EH_T1
 from ExperimentClass_1D_SWAP import EH_SWAP
 from ExperimentClass_1D_Ramsey import EH_Ramsey
 from ExperimentClass_1D_DD import EH_DD
+
 
 class EH_exp1D:
 	"""

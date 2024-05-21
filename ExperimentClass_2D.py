@@ -6,7 +6,6 @@ written by Mo Chen in Oct. 2023
 from qm.qua import *
 from qm import QuantumMachinesManager, SimulationConfig, LoopbackInterface, generate_qua_script
 from qm.octave import *
-#from qm.octave.octave_manager import ClockMode
 from configuration import *
 from scipy import signal
 from qm import SimulationConfig
@@ -19,14 +18,14 @@ from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 #from qutip import *
 from typing import Union
-from macros import *
+from macros import ham, readout_rotated_macro, declare_vars, wait_until_job_is_paused
 import warnings
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 import Labber
 
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
 
 # improt experiments
 from ExperimentClass_2D_RR import EH_RR
