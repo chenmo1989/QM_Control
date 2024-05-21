@@ -565,16 +565,15 @@ class AH_exp1D:
 	def T2(self, expt_dataset, to_plot = True, data_process_method = 'Amplitude'):
 		"""Fit to T2 relaxation curve, without oscillation.
 		
-		This function takes the amplitude in expt_dataset, fit it to a simple exponential model (with a constant offset), and returns the T1.
-		Todo: allow rotation angle, rather than just using amplitude of the signal.
-		
+		This function takes the amplitude in expt_dataset, fit it to a stretched exponential model (with a constant offset), and returns the T2.
+
 		Args:
 			expt_dataset ([type]): [description]
 			to_plot (bool): [description] (default: `True`)
 			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
 		
 		Returns:
-			qubit_T1 (int): Could directly pass to machine.
+			qubit_T2 (int): Could directly pass to machine.
 		"""
 		
 		coord_key_x = None
@@ -589,29 +588,20 @@ class AH_exp1D:
 
 		x = expt_dataset.coords[coord_key_x].values
 
-		mod = lmfit.Model(self._stretched_exp)
+		mod = lmfit.Model(self._stretched_exp) + lmfit.models.LinearModel()
 		pars = mod.make_params()
 		pars['decay'].set(value = x[-1]/2, min = 1, max = np.inf)
-		pars['amplitude'].set(value = 1, vary = False) # only the amplitude in Sine will vary
+		pars['amplitude'].set(value = y[0] - y[-1], vary = False) # only the amplitude in Sine will vary
 		pars['exponent'].set(value = 2, min = 0, max = 6) # stretched exp, assuming gaussian noise
-
-		pars_decay = mod.guess(y - y[-1], x = x)
-
-		mod = mod + lmfit.models.LinearModel()
-		pars = mod.make_params()
 		pars['slope'].set(value = 0, vary = False) # flat background offset
-
-		for keys in pars_decay:
-			pars[keys] = pars_decay[keys]
+		pars['intercept'].set(value = y[-1])
 
 		out = mod.fit(y, pars, x = x)
 
 		qubit_T2 = out.params['decay'].value
 		qubit_T2_exponent = out.params["exponent"].value
-		print(f'Qubit T2*: {qubit_T2: .1f} [ns]')
 		
-		
-		if qubit_T1 > 1E3:
+		if qubit_T2 > 1E3:
 			print(f'Qubit T2*: {qubit_T2/1E3: .1f} [us]')
 		else:
 			print(f'Qubit T2*: {qubit_T2: .1f} [ns]')
