@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import xarray as xr
+import time
 
 
 class EH_RR:
@@ -199,9 +200,14 @@ class EH_RR:
 			save(Q, Q_st)
 	save(m, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time)
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -357,8 +363,13 @@ class EH_RR:
 			save(Q, Q_st)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time)
+			}
+
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:

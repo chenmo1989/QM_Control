@@ -26,7 +26,7 @@ class EH_Ramsey:
 		self.datalogs = ref_to_datalogs
 		self.qmm = ref_to_qmm
 
-	def ramsey(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, detuning = 1E6, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
+	def ramsey(self, machine, tau_sweep_abs, qubit_index, ff_amp = 0.0, n_avg = 1E3, detuning = 1E6, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
 		"""Run qubit ramsey experiment.
 		
 		Detuning realized by a virtual rotation on the phase of the second pi/2 pulse. 
@@ -36,6 +36,7 @@ class EH_Ramsey:
 			machine ([type]): [description]
 			tau_sweep_abs ([type]): in ns! Values not multiples of clock cycles will be regulated and removed.
 			qubit_index ([type]): [description]
+			ff_amp (number): Fast flux amplitude that overlaps
 			n_avg (number): [description] (default: `1E3`)
 			detuning (number): [description] (default: `1E6`)
 			cd_time (number): [description] (default: `10E3`)
@@ -66,6 +67,8 @@ class EH_Ramsey:
 			with for_(n, 0, n < n_avg, n + 1):
 				with for_(*from_array(t, tau_sweep)):
 					assign(phase, Cast.mul_fixed_by_int(detuning * 1e-9, 4 * t))
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=t+10+2*(machine.qubits[qubit_index].pi_length)//4)
+					wait(5, machine.qubits[qubit_index].name)
 					with strict_timing_():
 						play("pi2", machine.qubits[qubit_index].name)
 						wait(t, machine.qubits[qubit_index].name)
@@ -75,6 +78,9 @@ class EH_Ramsey:
 					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
+					if ff_amp != 0:
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=t+10+2*(machine.qubits[qubit_index].pi_length)//4)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 					reset_frame(machine.qubits[qubit_index].name) # to avoid phase accumulation
 				save(n, n_st)
@@ -151,23 +157,34 @@ class EH_Ramsey:
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = [] # use t0, t1, t2, ...
 			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
-	with for_(*from_array(t, tau_sweep)):
-		assign(phase, Cast.mul_fixed_by_int(detuning * 1e-9, 4 * t))
-		with strict_timing_():
-			play("pi2", machine.qubits[qubit_index].name)
-			wait(t, machine.qubits[qubit_index].name)
-			frame_rotation_2pi(phase, machine.qubits[qubit_index].name)
-			play("pi2", machine.qubits[qubit_index].name)
-		align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
-		readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
-		save(I, I_st)
-		save(Q, Q_st)
-		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
-		reset_frame(machine.qubits[qubit_index].name) # to avoid phase accumulation
-	save(n, n_st)"""
+				with for_(*from_array(t, tau_sweep)):
+					assign(phase, Cast.mul_fixed_by_int(detuning * 1e-9, 4 * t))
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=t+10+2*(machine.qubits[qubit_index].pi_length)//4)
+					wait(5, machine.qubits[qubit_index].name)
+					with strict_timing_():
+						play("pi2", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+						frame_rotation_2pi(phase, machine.qubits[qubit_index].name)
+						play("pi2", machine.qubits[qubit_index].name)
+					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+					save(I, I_st)
+					save(Q, Q_st)
+					if ff_amp != 0:
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=t+10+2*(machine.qubits[qubit_index].pi_length)//4)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+					reset_frame(machine.qubits[qubit_index].name) # to avoid phase accumulation
+				save(n, n_st)"""
 
+			expt_extra = {
+				'ff_amp [V]': str(ff_amp),
+				'n_ave': str(n_avg),
+				'Detuning [Hz]': str(detuning),
+				'Qubit CD [ns]': str(cd_time)
+			}
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -381,8 +398,15 @@ with for_(n, 0, n < n_avg, n + 1):
 		reset_frame(machine.qubits[qubit_index].name) # to avoid phase accumulation
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Detuning [Hz]': str(detuning),
+				'Qubit CD [ns]': str(cd_time_qubit),
+				'TLS CD [ns]': str(cd_time_TLS)
+			}
+
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:

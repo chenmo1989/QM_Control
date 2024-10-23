@@ -175,8 +175,12 @@ class EH_SWAP:
 			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -362,9 +366,13 @@ class EH_SWAP:
 			align()
 			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
 
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
