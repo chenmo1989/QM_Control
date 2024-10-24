@@ -233,9 +233,11 @@ def build_config(quam: QuAM):
                         "cw": "const_pulse",
                         "pi": f"pi_pulse{i}",
                         "pi2": f"pi_over_two_pulse{i}",
+                        "pi2y": f"pi_over_two_y_pulse{i}",
                         "pi_ef": f"pi_pulse_ef{i}",
                         "pi2_ef": f"pi_over_two_pulse_ef{i}",
                         "pi_tls": f"pi_pulse_tls{i}",
+                        "-pi_tls": f"pi_pulse_-x_tls{i}",
                         "pi2_tls": f"pi_over_two_pulse_tls{i}",
                         "pi2y_tls": f"pi_over_two_y_pulse_tls{i}",
                         "x180": f"x180_pulse{i}",
@@ -360,6 +362,18 @@ def build_config(quam: QuAM):
                     "waveforms": {
                         "I": f"pi_over_two_wf{i}",
                         "Q": "zero_wf",
+                    },
+                    "digital_marker": "ON",
+                }
+                for i in range(len(quam.qubits))
+            },
+            **{
+                f"pi_over_two_y_pulse{i}": {
+                    "operation": "control",
+                    "length": quam.qubits[i].pi_length,
+                    "waveforms": {
+                        "I": "zero_wf",
+                        "Q": f"pi_over_two_wf{i}",
                     },
                     "digital_marker": "ON",
                 }

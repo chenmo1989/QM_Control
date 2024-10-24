@@ -244,8 +244,15 @@ with for_(n, 0, n < n_avg, n + 1):
 		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'pi_over_2_phase': str(pi_over_2_phase),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time_qubit),
+				'TLS CD [ns]': str(cd_time_TLS)
+			}
+
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -253,6 +260,7 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -302,8 +310,6 @@ with for_(n, 0, n < n_avg, n + 1):
 
 		# regular LO and if frequency, and their settings in configurations.
 		tls_if_freq = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
-
-		config = build_config(machine)
 
 		if abs(tls_if_freq) > 400E6: # check if parameters are within hardware limit
 			print("TLS if range > 400MHz. Setting the octave freq. Will calibrate octave.")
@@ -377,6 +383,9 @@ with for_(n, 0, n < n_avg, n + 1):
 					align()
 					square_TLS_swap[0].run(amp_array=[(machine.flux_lines[qubit_index].name, -1)])
 					wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
+					align()
+					# reset_frame(machine.qubits[qubit_index].name)  # to avoid phase accumulation
+
 				save(n, n_st)
 
 			with stream_processing():
@@ -395,6 +404,7 @@ with for_(n, 0, n < n_avg, n + 1):
 				machine = self.set_octave.calibration(machine, qubit_index, TLS_index=TLS_index, log_flag=True,
 													  calibration_flag=True, qubit_only=True)
 
+
 			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_echo)
@@ -407,13 +417,6 @@ with for_(n, 0, n < n_avg, n + 1):
 				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
 
 			while results.is_processing():
-				# Fetch results
-				I, Q, iteration = results.fetch_all()
-				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
-				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
-				# Progress bar
-				progress_counter(iteration, n_avg, start_time=results.get_start_time())
-				
 				# Fetch results
 				I, Q, iteration = results.fetch_all()
 				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
@@ -493,8 +496,16 @@ with for_(n, 0, n < n_avg, n + 1):
 		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'pi_over_2_phase': str(pi_over_2_phase),
+				'N CPMG': str(N_CPMG),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time_qubit),
+				'TLS CD [ns]': str(cd_time_TLS)
+			}
+
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra = expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -502,7 +513,417 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
-			
+	def qubit_echo(self, machine, tau_sweep_abs, qubit_index, pi_over_2_phase='y', ff_amp = 0.0, n_avg=1E3,
+				 cd_time_qubit=20E3, to_simulate=False, simulation_len=3000, final_plot=True,
+				 live_plot=False, data_process_method='I', calibrate_octave=False):
+		"""Run qubit echo experiment.
+
+		[description]
+
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			pi_over_2_phase (str): [description] (default: `'y'`)
+			ff_amp (number): Fast flux amplitude that overlaps with the experimental sequence
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+			calibrate_octave (bool): [description] (default: `False`)
+
+		Returns:
+			[type]: [description]
+		"""
+
+		if pi_over_2_phase not in ['x', 'y']:
+			print("pi_over_2_phase must be either x or y. Abort...")
+			return machine, None
+
+		# regulate the free evolution time in ramsey
+		if min(tau_sweep_abs) < 16:
+			print("some ramsey lengths shorter than 4 clock cycles, removed from run")
+			tau_sweep_abs = tau_sweep_abs[tau_sweep_abs > 15]
+
+		tau_sweep_cc = tau_sweep_abs // 4  # in clock cycles
+		tau_sweep_cc = np.unique(tau_sweep_cc)
+		tau_sweep = tau_sweep_cc.astype(int)  # clock cycles, used for experiments
+		tau_sweep_abs = tau_sweep * 4  # time in ns
+
+		config = build_config(machine)
+
+		with program() as qubit_echo:
+			[I, Q, n, I_st, Q_st, n_st] = declare_vars()
+			t = declare(int)
+
+			with for_(n, 0, n < n_avg, n + 1):
+				with for_(*from_array(t, tau_sweep)):
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=2*t+10+3*(machine.qubits[qubit_index].pi_length//4))
+					wait(5, machine.qubits[qubit_index].name)
+					with strict_timing_():
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+						play("pi", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+
+					align()
+					readout_rotated_macro(machine.resonators[qubit_index].name, I, Q)
+					save(I, I_st)
+					save(Q, Q_st)
+					if ff_amp !=0:
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=2*t+10+3*(machine.qubits[qubit_index].pi_length//4))
+					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
+				save(n, n_st)
+
+			with stream_processing():
+				I_st.buffer(len(tau_sweep)).average().save("I")
+				Q_st.buffer(len(tau_sweep)).average().save("Q")
+				n_st.save("iteration")
+
+		if to_simulate:
+			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, qubit_echo, simulation_config)
+			job.get_simulated_samples().con1.plot()
+			return machine, None
+		else:
+			# calibrates octave for the TLS pulse
+			if calibrate_octave:
+				machine = self.set_octave.calibration(machine, qubit_index, log_flag=True,
+													  calibration_flag=True, qubit_only=True)
+
+			qm = self.qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
+			job = qm.execute(qubit_echo)
+			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
+
+			# Live plotting
+			if live_plot:
+				fig = plt.figure()
+				plt.rcParams['figure.figsize'] = [8, 4]
+				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
+
+			while results.is_processing():
+				# Fetch results
+				I, Q, iteration = results.fetch_all()
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+				# Progress bar
+				progress_counter(iteration, n_avg, start_time=results.get_start_time())
+
+				if live_plot:
+					plt.cla()
+					plt.title("Qubit Echo")
+
+					if data_process_method == 'Phase':
+						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method == 'Amplitude':
+						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method == 'I':
+						plt.plot(tau_sweep_abs, I, ".")
+						plt.ylabel("Signal I Quadrature [V]")
+					plt.xlabel("Half Pulse Interval [ns]")
+					plt.pause(0.5)
+
+			# fetch all data after live-updating
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+				{
+					"I": (["x"], I),
+					"Q": (["x"], Q),
+				},
+				coords={
+					"Half_Pulse_Interval": (["x"], tau_sweep_abs),
+				},
+			)
+
+			expt_name = 'qubit_echo'
+			expt_long_name = 'Qubit Echo'
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+			expt_sequence = """	with for_(n, 0, n < n_avg, n + 1):
+				with for_(*from_array(t, tau_sweep)):
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=2*t+10+3*(machine.qubits[qubit_index].pi_length//4))
+					wait(5, machine.qubits[qubit_index].name)
+					with strict_timing_():
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+						play("pi", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+
+					align()
+					readout_rotated_macro(machine.resonators[qubit_index].name, I, Q)
+					save(I, I_st)
+					save(Q, Q_st)
+					if ff_amp !=0:
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=2*t+10+3*(machine.qubits[qubit_index].pi_length//4))
+					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
+				save(n, n_st)"""
+
+			expt_extra = {
+				'pi_over_2_phase': str(pi_over_2_phase),
+				'ff amp [V]': str(ff_amp),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time_qubit)
+			}
+
+			# save data
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+
+			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
+				plt.cla()
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
+				plt.title(expt_dataset.attrs['long_name'])
+
+			return machine, expt_dataset
+
+	def qubit_CPMG(self, machine, tau_sweep_abs, qubit_index, pi_over_2_phase='y', N_CPMG=8, ff_amp = 0.0, n_avg=1E3,
+				 cd_time_qubit=20E3, to_simulate=False, simulation_len=3000, final_plot=True,
+				 live_plot=False, data_process_method='I', calibrate_octave=False):
+		"""Run qubit CPMG experiment. pi pulse # determined by N_CPMG.
+
+		[description]
+
+		Args:
+			machine ([type]): [description]
+			tau_sweep_abs ([type]): [description]
+			qubit_index ([type]): [description]
+			pi_over_2_phase (str): [description] (default: `'y'`)
+			N_CPMG (number): [description] (default: `8`)
+			ff_amp (number): Fast flux amplitude that overlaps with the experimental sequence
+			n_avg (number): [description] (default: `1E3`)
+			cd_time_qubit (number): [description] (default: `20E3`)
+			to_simulate (bool): [description] (default: `False`)
+			simulation_len (number): [description] (default: `3000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+			calibrate_octave (bool): [description] (default: `False`)
+
+		Returns:
+			[type]: [description]
+		"""
+
+		if pi_over_2_phase not in ['x', 'y']:
+			print("pi_over_2_phase must be x or y. Abort...")
+			return machine, None
+
+		# regulate the free evolution time in ramsey
+		if min(tau_sweep_abs) < 16:
+			print("some ramsey lengths shorter than 4 clock cycles, removed from run")
+			tau_sweep_abs = tau_sweep_abs[tau_sweep_abs > 15]
+
+		tau_sweep_cc = tau_sweep_abs // 4  # in clock cycles
+		tau_sweep_cc = np.unique(tau_sweep_cc)
+		tau_sweep = tau_sweep_cc.astype(int)  # clock cycles, used for experiments
+		tau_sweep_abs = tau_sweep * 4  # time in ns
+
+
+		config = build_config(machine)
+
+		with program() as qubit_echo:
+			[I, Q, n, I_st, Q_st, n_st] = declare_vars()
+			t = declare(int)
+
+			with for_(n, 0, n < n_avg, n + 1):
+				with for_(*from_array(t, tau_sweep)):
+					with strict_timing_():
+						play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name,
+							 duration=(2*t+2*t*(N_CPMG-1)) + 10 + (N_CPMG+2) * (machine.qubits[qubit_index].pi_length // 4))
+						wait(5, machine.qubits[qubit_index].name)
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+
+						wait(t, machine.qubits[qubit_index].name)
+
+						for i in range(N_CPMG - 1):
+							play("pi", machine.qubits[qubit_index].name)
+							wait(t * 2, machine.qubits[qubit_index].name)
+
+						play("pi", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+
+					align()
+					readout_rotated_macro(machine.resonators[qubit_index].name, I, Q)
+					save(I, I_st)
+					save(Q, Q_st)
+					if ff_amp !=0:
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name,
+							 duration=(2*t+2*t*(N_CPMG-1)) + 10 + (N_CPMG+2) * (machine.qubits[qubit_index].pi_length // 4))
+					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
+				# reset_frame(machine.qubits[qubit_index].name)  # to avoid phase accumulation
+
+				save(n, n_st)
+
+			with stream_processing():
+				I_st.buffer(len(tau_sweep)).average().save("I")
+				Q_st.buffer(len(tau_sweep)).average().save("Q")
+				n_st.save("iteration")
+
+		if to_simulate:
+			simulation_config = SimulationConfig(duration=simulation_len)  # in clock cycles
+			job = self.qmm.simulate(config, qubit_echo, simulation_config)
+			job.get_simulated_samples().con1.plot()
+			return machine, None
+		else:
+			# calibrates octave for the TLS pulse
+			if calibrate_octave:
+				machine = self.set_octave.calibration(machine, qubit_index, log_flag=True,
+													  calibration_flag=True, qubit_only=True)
+
+			qm = self.qmm.open_qm(config)
+			timestamp_created = datetime.datetime.now()
+			job = qm.execute(qubit_echo)
+			results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
+
+			# Live plotting
+			if final_plot:
+				fig = plt.figure()
+				plt.rcParams['figure.figsize'] = [8, 4]
+				interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
+
+			while results.is_processing():
+				# Fetch results
+				I, Q, iteration = results.fetch_all()
+				I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+				Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+				# Progress bar
+				progress_counter(iteration, n_avg, start_time=results.get_start_time())
+
+				if live_plot:
+					plt.cla()
+					plt.title("Qubit CPMG" + '-' + str(N_CPMG))
+
+					if data_process_method == 'Phase':
+						plt.plot(tau_sweep_abs, np.unwrap(np.angle(I + 1j * Q)), ".")
+						plt.ylabel("Signal Phase [rad]")
+					elif data_process_method == 'Amplitude':
+						plt.plot(tau_sweep_abs, np.abs(I + 1j * Q), ".")
+						plt.ylabel("Signal Amplitude [V]")
+					elif data_process_method == 'I':
+						plt.plot(tau_sweep_abs, I, ".")
+						plt.ylabel("Signal I Quadrature [V]")
+					plt.xlabel("Half Pulse Interval [ns]")
+					plt.pause(0.5)
+
+			# fetch all data after live-updating
+			timestamp_finished = datetime.datetime.now()
+			I, Q, _ = results.fetch_all()
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+
+			# generate xarray dataset
+			expt_dataset = xr.Dataset(
+				{
+					"I": (["x"], I),
+					"Q": (["x"], Q),
+				},
+				coords={
+					"Half_Pulse_Interval": (["x"], tau_sweep_abs),
+				},
+			)
+
+			expt_name = 'qubit_cpmg' + str(N_CPMG)
+			expt_long_name = 'Qubit CPMG' + '-' + str(N_CPMG)
+			expt_qubits = [machine.qubits[qubit_index].name]
+			expt_TLS = [] # use t0, t1, t2, ...
+
+			expt_sequence = """			with for_(n, 0, n < n_avg, n + 1):
+				with for_(*from_array(t, tau_sweep)):
+					with strict_timing_():
+						play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name,
+							 duration=(2*t+2*t*(N_CPMG-1)) + 10 + (N_CPMG+2) * (machine.qubits[qubit_index].pi_length // 4))
+						wait(5, machine.qubits[qubit_index].name)
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+
+						wait(t, machine.qubits[qubit_index].name)
+
+						for i in range(N_CPMG - 1):
+							play("pi", machine.qubits[qubit_index].name)
+							wait(t * 2, machine.qubits[qubit_index].name)
+
+						play("pi", machine.qubits[qubit_index].name)
+						wait(t, machine.qubits[qubit_index].name)
+
+						if pi_over_2_phase == 'x':
+							play("pi2", machine.qubits[qubit_index].name)
+						else:
+							play("pi2y", machine.qubits[qubit_index].name)
+
+					align()
+					readout_rotated_macro(machine.resonators[qubit_index].name, I, Q)
+					save(I, I_st)
+					save(Q, Q_st)
+					if ff_amp !=0:
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name,
+							 duration=(2*t+2*t*(N_CPMG-1)) + 10 + (N_CPMG+2) * (machine.qubits[qubit_index].pi_length // 4))
+					wait(cd_time_qubit * u.ns, machine.resonators[qubit_index].name)
+				# reset_frame(machine.qubits[qubit_index].name)  # to avoid phase accumulation
+
+				save(n, n_st)"""
+
+			expt_extra = {
+				'pi_over_2_phase': str(pi_over_2_phase),
+				'N CPMG': str(N_CPMG),
+				'ff amp [V]': str(ff_amp),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time_qubit)
+			}
+
+			# save data
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence,
+											  expt_extra=expt_extra)
+
+			if final_plot:
+				if live_plot is False:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
+				plt.cla()
+				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
+				plt.title(expt_dataset.attrs['long_name'])
+
+			return machine, expt_dataset

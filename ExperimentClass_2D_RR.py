@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import xarray as xr
+import time
+
 
 
 class EH_RR:
@@ -199,9 +201,14 @@ class EH_RR:
 			save(Q, Q_st)
 	save(m, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time)
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -211,6 +218,7 @@ class EH_RR:
 				sig_amp = np.sqrt(expt_dataset.I ** 2 + expt_dataset.Q ** 2)
 				sig_amp.plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
 				plt.show()
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -356,8 +364,13 @@ class EH_RR:
 			save(Q, Q_st)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time)
+			}
+
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -365,6 +378,7 @@ class EH_RR:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 

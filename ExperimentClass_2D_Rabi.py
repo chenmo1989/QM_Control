@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import xarray as xr
+import time
 
 
 class EH_Rabi:
@@ -201,9 +202,14 @@ class EH_Rabi:
 		expt_TLS = []  # use t0, t1, t2, ...
 		expt_sequence = """"""
 
+		expt_extra = {
+			'n_ave': str(n_avg),
+			'Qubit CD [ns]': str(cd_time)
+		}
+
 		# save data
 		expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-										  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+										  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 		# plot qubit spectroscopy vs dc flux
 		if final_plot:
@@ -248,14 +254,18 @@ class EH_Rabi:
 		Returns:
 			[type]: [description]
 		"""
-
-
 		# set up variables
 		ff_sweep = ff_sweep_abs / machine.flux_lines[qubit_index].flux_pulse_amp # relative pulse amp
-		if poly_param is None:
-			poly_param = machine.qubits[qubit_index].DC_tuning_curve
 		channel_index = int(machine.qubits[qubit_index].name[1:])
-		qubit_freq_est_sweep = np.polyval(poly_param, (ff_to_dc_ratio * ff_sweep_abs) + machine.dc_flux[channel_index].max_frequency_point) * 1E6 # Hz
+
+		if ff_to_dc_ratio is None:
+			if poly_param is None:
+				poly_param = machine.qubits[qubit_index].AC_tuning_curve
+			qubit_freq_est_sweep = np.polyval(poly_param, ff_sweep_abs) * 1E6  # Hz
+		else:
+			if poly_param is None:
+				poly_param = machine.qubits[qubit_index].DC_tuning_curve
+			qubit_freq_est_sweep = np.polyval(poly_param, (ff_to_dc_ratio * ff_sweep_abs) + machine.dc_flux[channel_index].max_frequency_point) * 1E6 # Hz
 		qubit_freq_est_sweep = np.floor(qubit_freq_est_sweep)
 
 		# Initialize empty vectors to store the global 'I' & 'Q' results
@@ -326,10 +336,14 @@ class EH_Rabi:
 		expt_qubits = [machine.qubits[qubit_index].name]
 		expt_TLS = []  # use t0, t1, t2, ...
 		expt_sequence = """"""
-
+		expt_extra = {
+			'n_ave': str(n_avg),
+			'Qubit CD [ns]': str(cd_time),
+			'ff_to_dc_ratio': str(ff_to_dc_ratio)
+		}
 		# save data
 		expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-										  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+										  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 		# plot qubit spectroscopy vs fast flux
 		if final_plot:
@@ -486,8 +500,9 @@ class EH_Rabi:
 			sol_tmp = np.roots(poly_param - np.array([0, 0, 0, 0, freq_tmp/1E6]))
 			if np.sum(np.isreal(sol_tmp))==4: # four real solutions, take the smaller positive one
 				sol_tmp = min(np.real(sol_tmp[sol_tmp>0]))
-			else: # two real and two complex solutions, take the positive real value
-				sol_tmp = max(np.real(sol_tmp[np.isreal(sol_tmp)]))
+			else: # two real and two complex solutions, take the smaller positive real value
+				sol_tmp = sol_tmp[np.isreal(sol_tmp)]
+				sol_tmp = min(np.real(sol_tmp[sol_tmp>0]))
 			ff_sweep_abs.append(sol_tmp)
 		ff_sweep_abs = np.array(ff_sweep_abs)
 		if max(abs(ff_sweep_abs)) > 0.5:
@@ -620,10 +635,14 @@ class EH_Rabi:
 		expt_qubits = [machine.qubits[qubit_index].name]
 		expt_TLS = []  # use t0, t1, t2, ...
 		expt_sequence = """"""
+		expt_extra = {
+			'n_ave': str(n_avg),
+			'Qubit CD [ns]': str(cd_time)
+		}
 
 		# save data
 		expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-										  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+										  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 		# plot qubit spectroscopy vs fast flux
 		if final_plot:
@@ -634,6 +653,198 @@ class EH_Rabi:
 			expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
 			plt.title(expt_dataset.attrs['long_name'])
 			plt.show()
+
+		return machine, expt_dataset
+
+	def qubit_freq_time(self, machine, qubit_freq_sweep, qubit_index, N_rounds = 1, pi_amp_rel = 1.0, ff_amp = 0.0, n_avg = 1E3, cd_time = 10E3, to_simulate = False, simulation_len = 3000, final_plot=True, live_plot=False, data_process_method = 'I'):
+		"""
+		Qubit spectroscopy experiment in 1D as a function of time
+
+		Args:
+			machine ([type]): 1D array of qubit frequency sweep
+			qubit_freq_sweep ([type]): [description]
+			qubit_index ([type]): [description]
+			pi_amp_rel (number): [number of times the spectrosocpy is run - this will yield a final time] (default: `1.0`)
+			pi_amp_rel (number): [description] (default: `1.0`)
+			ff_amp (number): Fast flux amplitude that overlaps with the Rabi pulse. The ff pulse is 40ns longer than Rabi pulse, and share the pulse midpoint. (default: `0.0`)
+			n_avg (number): Repetitions of the experiments (default: `1E3`)
+			cd_time (number): Cooldown time between subsequent experiments (default: `10E3`)
+			to_simulate (bool): True: run simulation; False: run experiment (default: `False`)
+			simulation_len (number): Length of the sequence to simulate. In clock cycles (4ns) (default: `1000`)
+			final_plot (bool): [description] (default: `True`)
+			live_plot (bool): [description] (default: `False`)
+			data_process_method (str): [description] (default: `'I'`)
+
+		Returns:
+			machine
+			expt_dataset
+		"""
+
+		qubit_lo = machine.octaves[0].LO_sources[1].LO_frequency
+		qubit_if_sweep = qubit_freq_sweep - qubit_lo
+		qubit_if_sweep = np.floor(qubit_if_sweep)
+		ff_duration = machine.qubits[qubit_index].pi_length + 40
+
+		# Initialize empty vectors to store the global 'I', 'Q', and 'timestamp' results
+		I_tot = []
+		Q_tot = []
+		timestamp = []
+
+		if np.max(abs(qubit_if_sweep)) > 400E6: # check if parameters are within hardware limit
+			print("qubit if range > 400MHz")
+			return machine, None
+
+		start_time = time.time()
+		timestamp.append(0)
+		t = datetime.datetime.now()
+		timestamp_created = datetime.datetime.now()
+
+		for N_index in np.arange(N_rounds):
+			progress_counter(N_index, N_rounds, start_time=start_time)
+
+			with program() as qubit_freq_prog:
+				[I,Q,n,I_st,Q_st,n_st] = declare_vars()
+				df = declare(int)
+
+				with for_(n, 0, n < n_avg, n+1):
+					with for_(*from_array(df,qubit_if_sweep)):
+						update_frequency(machine.qubits[qubit_index].name, df)
+						play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+						wait(5, machine.qubits[qubit_index].name)
+						play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+						wait(5, machine.qubits[qubit_index].name)
+						align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+							  machine.resonators[qubit_index].name)
+						readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+						align()
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+						wait(cd_time * u.ns, machine.flux_lines[qubit_index].name)
+						save(I, I_st)
+						save(Q, Q_st)
+					save(n, n_st)
+				with stream_processing():
+					n_st.save('iteration')
+					I_st.buffer(len(qubit_if_sweep)).average().save("I")
+					Q_st.buffer(len(qubit_if_sweep)).average().save("Q")
+
+			#####################################
+			#  Open Communication with the QOP  #
+			#####################################
+			config = build_config(machine)
+			# Simulate or execute #
+			if to_simulate:  # simulation is useful to see the sequence, especially the timing (clock cycle vs ns)
+				simulation_config = SimulationConfig(duration=simulation_len)
+				job = self.qmm.simulate(config, qubit_freq_prog, simulation_config)
+				job.get_simulated_samples().con1.plot()
+				return machine, None
+			else:
+				qm = self.qmm.open_qm(config)
+				job = qm.execute(qubit_freq_prog)
+				# Get results from QUA program
+				results = fetching_tool(job, data_list=["I", "Q", "iteration"], mode="live")
+				# Live plotting
+				if live_plot:
+					fig = plt.figure()
+					plt.rcParams['figure.figsize'] = [8, 4]
+					interrupt_on_close(fig, job)  # Interrupts the job when closing the figure
+
+					while results.is_processing():
+						# Fetch results
+						I_tmp, Q_tmp, iteration = results.fetch_all()
+						I_tmp = u.demod2volts(I_tmp, machine.resonators[qubit_index].readout_pulse_length)
+						Q_tmp = u.demod2volts(Q_tmp, machine.resonators[qubit_index].readout_pulse_length)
+
+						# Update the live plot!
+						plt.cla()
+						plt.title("Qubit Spectroscopy")
+						if data_process_method == 'Phase':
+							plt.plot((qubit_freq_sweep) / u.MHz, np.unwrap(np.angle(I_tmp + 1j * Q_tmp)), ".")
+							plt.xlabel("Qubit Frequency [MHz]")
+							plt.ylabel("Signal Phase [rad]")
+						elif data_process_method == 'Amplitude':
+							plt.plot((qubit_freq_sweep) / u.MHz, np.abs(I_tmp + 1j * Q_tmp), ".")
+							plt.xlabel("Qubit Frequency [MHz]")
+							plt.ylabel("Signal Amplitude [V]")
+						elif data_process_method == 'I':
+							plt.plot((qubit_freq_sweep) / u.MHz, I_tmp, ".")
+							plt.xlabel("Qubit Frequency [MHz]")
+							plt.ylabel("Signal I Quadrature [V]")
+						plt.pause(0.5)
+				else:
+					while results.is_processing():
+						# Fetch results
+						I_tmp, Q_tmp, iteration = results.fetch_all()
+
+			# fetch all data after live-updating
+			I, Q, iteration = results.fetch_all()
+			I = u.demod2volts(I, machine.resonators[qubit_index].readout_pulse_length)
+			Q = u.demod2volts(Q, machine.resonators[qubit_index].readout_pulse_length)
+
+			elapsed = datetime.datetime.now() - t
+			timestamp.append(elapsed.total_seconds())
+			I_tot.append(I)
+			Q_tot.append(Q)
+
+		timestamp_finished = datetime.datetime.now()
+		# save
+		I_final = np.concatenate([I_tot])
+		Q_final = np.concatenate([Q_tot])
+		tau = np.concatenate([timestamp])
+		# generate xarray dataset
+		expt_dataset = xr.Dataset(
+			{
+				"I": (["x", "y"], I_final),
+				"Q": (["x", "y"], Q_final),
+			},
+			coords={
+				"Elapsed": (["x"], tau[1:]),
+				"Qubit_Frequency": (["y"], qubit_freq_sweep)})
+
+		expt_name = 'time_spec'
+		expt_long_name = 'Qubit Time Spectroscopy'
+		expt_qubits = [machine.qubits[qubit_index].name]
+		expt_TLS = []  # use t0, t1, t2, ...
+		expt_sequence = """with for_(n, 0, n < n_avg, n+1):
+		with for_(*from_array(df,qubit_if_sweep)):
+			update_frequency(machine.qubits[qubit_index].name, df)
+			play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+			wait(5, machine.qubits[qubit_index].name)
+			play('pi'*amp(pi_amp_rel), machine.qubits[qubit_index].name)
+			wait(5, machine.qubits[qubit_index].name)
+			align(machine.qubits[qubit_index].name, machine.flux_lines[qubit_index].name,
+				  machine.resonators[qubit_index].name)
+			readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+			align()
+			# eliminate charge accumulation
+			play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+			save(I, I_st)
+			save(Q, Q_st)
+		save(n, n_st)"""
+		expt_extra = {
+			'N rounds': str(N_rounds),
+			'pi_amp_rel': str(pi_amp_rel),
+			'ff amp [V]': str(ff_amp),
+			'n_ave': str(n_avg),
+			'Qubit CD [ns]': str(cd_time)
+		}
+
+		# save data
+		expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
+										  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+
+
+		if final_plot:
+			if live_plot is False:
+				fig = plt.figure()
+				plt.rcParams['figure.figsize'] = [8, 4]
+			plt.cla()
+			expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0],
+												   y=list(expt_dataset.coords.keys())[1], cmap="seismic")
+			plt.title(expt_dataset.attrs['long_name'])
+			plt.show()
+
 
 		return machine, expt_dataset
 

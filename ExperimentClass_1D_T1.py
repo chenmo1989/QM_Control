@@ -27,7 +27,7 @@ class EH_T1:
 		self.qmm = ref_to_qmm
 		
 
-	def qubit_T1(self, machine, tau_sweep_abs, qubit_index, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
+	def qubit_T1(self, machine, tau_sweep_abs, qubit_index, ff_amp = 0.0, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False, data_process_method = 'Amplitude'):
 		"""Run Qubit T1 measurement.
 		
 		Currently at fixed 0 fast flux. 
@@ -37,6 +37,7 @@ class EH_T1:
 			machine ([type]): in ns. Is regulated to integer clock cycles before running experiment.
 			tau_sweep_abs ([type]): [description]
 			qubit_index ([type]): [description]
+			ff_amp (number): Fast flux amplitude that overlaps with the pi pulse.
 			n_avg (number): [description] (default: `1E3`)
 			cd_time (number): [description] (default: `10E3`)
 			to_simulate (bool): [description] (default: `False`)
@@ -54,18 +55,25 @@ class EH_T1:
 		tau_sweep = tau_sweep_cc.astype(int) # clock cycles
 		tau_sweep_abs = tau_sweep * 4 # time in ns
 
+
 		with program() as t1_prog:
 			[I, Q, n, I_st, Q_st, n_st] = declare_vars()
 			tau = declare(int)
 
 			with for_(n, 0, n < n_avg, n + 1):
 				with for_(*from_array(tau, tau_sweep)):
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=tau+(machine.qubits[qubit_index].pi_length//4)+10)
+					wait(5, machine.qubits[qubit_index].name)
 					play("pi", machine.qubits[qubit_index].name)
 					wait(tau, machine.qubits[qubit_index].name)
-					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
+					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name, machine.flux_lines[qubit_index].name)
+					wait(5, machine.resonators[qubit_index].name)
 					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
 					save(I, I_st)
 					save(Q, Q_st)
+					if ff_amp != 0:
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=tau+(machine.qubits[qubit_index].pi_length//4)+10)
 					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 			with stream_processing():
@@ -140,18 +148,28 @@ class EH_T1:
 			expt_qubits = [machine.qubits[qubit_index].name]
 			expt_TLS = [] # use t0, t1, t2, ...
 			expt_sequence = """with for_(n, 0, n < n_avg, n + 1):
-with for_(*from_array(tau, tau_sweep)):
-	play("pi", machine.qubits[qubit_index].name)
-	wait(tau, machine.qubits[qubit_index].name)
-	align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
-	readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
-	save(I, I_st)
-	save(Q, Q_st)
-	wait(cd_time * u.ns, machine.resonators[qubit_index].name)
-save(n, n_st)"""
+				with for_(*from_array(tau, tau_sweep)):
+					play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=tau+(machine.qubits[qubit_index].pi_length//4)+10)
+					wait(5, machine.qubits[qubit_index].name)
+					play("pi", machine.qubits[qubit_index].name)
+					wait(tau, machine.qubits[qubit_index].name)
+					align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
+					readout_rotated_macro(machine.resonators[qubit_index].name,I,Q)
+					save(I, I_st)
+					save(Q, Q_st)
+					if ff_amp != 0:
+						# eliminate charge accumulation
+						play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=tau+(machine.qubits[qubit_index].pi_length//4)+10)
+					wait(cd_time * u.ns, machine.resonators[qubit_index].name)
+				save(n, n_st)"""
 
+			expt_extra = {
+				'ff_amp [V]': str(ff_amp),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -159,6 +177,7 @@ save(n, n_st)"""
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -322,8 +341,14 @@ save(n, n_st)"""
 		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time_qubit),
+				'TLS CD [ns]': str(cd_time_TLS)
+			}
+
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -331,6 +356,7 @@ save(n, n_st)"""
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -523,8 +549,13 @@ with for_(n, 0, n < n_avg, n + 1):
 		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time_qubit),
+				'TLS CD [ns]': str(cd_time_TLS)
+			}
 			# save data
-			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -532,5 +563,6 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
