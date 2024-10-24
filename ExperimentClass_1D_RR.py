@@ -130,9 +130,14 @@ class EH_RR: # sub
 	wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n,n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time)
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			return machine, expt_dataset
 
@@ -288,9 +293,15 @@ class EH_RR: # sub
 		save(Q, Q_st)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time),
+				'readout state': readout_state
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -298,6 +309,7 @@ class EH_RR: # sub
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 
@@ -492,9 +504,14 @@ class EH_RR: # sub
 		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'CD [ns]': str(cd_time)
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -729,7 +746,7 @@ class EH_RR: # sub
 			return machine, expt_dataset
 
 
-	def single_shot_IQ_blob(self, machine, qubit_index, res_freq = None, n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
+	def single_shot_IQ_blob(self, machine, qubit_index, res_freq = None, ff_amp = 0.0,  n_avg = 1E3, cd_time = 20E3, to_simulate = False, simulation_len = 3000, final_plot = True, live_plot = False):
 		"""Runs single-shot readout experiment to get the IQ blobs
 		
 		Measures ground state I, Q, then excited state I, Q. Data saved as Ig, Qg, Ie, Qe in expt_dataset.
@@ -756,6 +773,7 @@ class EH_RR: # sub
 
 		res_lo = machine.octaves[0].LO_sources[0].LO_frequency
 		res_if = np.floor(res_freq - res_lo)
+		ff_duration = machine.qubits[qubit_index].pi_length + 40
 
 		if abs(res_if) > 400E6: # check if parameters are within hardware limit
 			print("res if > 400MHz")
@@ -787,7 +805,11 @@ class EH_RR: # sub
 
 				align()  # global align
 
-				play("pi", machine.qubits[qubit_index].name)
+				play("const" * amp(ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
+				wait(5, machine.qubits[qubit_index].name)
+				play('pi', machine.qubits[qubit_index].name)
+				wait(5, machine.qubits[qubit_index].name)
+
 				align(machine.qubits[qubit_index].name, machine.resonators[qubit_index].name)
 				measure(
 					"readout",
@@ -799,6 +821,8 @@ class EH_RR: # sub
 
 				save(I_e, I_e_st)
 				save(Q_e, Q_e_st)
+				if ff_amp != 0:
+					play("const" * amp(-1 * ff_amp), machine.flux_lines[qubit_index].name, duration=ff_duration * u.ns)
 				wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 				save(n, n_st)
 
@@ -911,9 +935,15 @@ class EH_RR: # sub
 	save(Q_e, Q_e_st)
 	wait(cd_time * u.ns, machine.resonators[qubit_index].name)"""
 
+			expt_extra = {
+				'ff_amp [V]': str(ff_amp),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -1168,9 +1198,13 @@ class EH_RR: # sub
 	# Save the averaging iteration to get the progress bar
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -1179,6 +1213,7 @@ class EH_RR: # sub
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("SNR")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			print(f"The optimal readout frequency is {res_freq_sweep[np.argmax(SNR)]} Hz (SNR={max(SNR)})")
 
@@ -1375,10 +1410,14 @@ class EH_RR: # sub
 		save(Q_e, Qe_st)
 	# Save the counter to get the progress bar
 	assign(counter, counter + 1)"""
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
 
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			# Plot the data
 			if final_plot:
@@ -1386,6 +1425,7 @@ class EH_RR: # sub
 				plt.rcParams['figure.figsize'] = [8, 4]
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("Readout Fidelity [%]")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			res_amp_opt = res_amp_abs_sweep[np.argmax(fidelity_vec)]
 			print(
@@ -1638,9 +1678,16 @@ class EH_RR: # sub
 	# Save the averaging iteration to get the progress bar
 	save(n, n_st)"""
 
+			expt_extra = {
+				'Readout length [ns]': str(readout_len),
+				'Ringdown length [ns]': str(ringdown_len),
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
+
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name,
-											  expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+											  expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			# Plot the data
 			if final_plot:
@@ -1649,6 +1696,7 @@ class EH_RR: # sub
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.ylabel("Readout Fidelity [%]")
 				plt.ylabel("Readout Fidelity [%]")
+				plt.title(expt_dataset.attrs['long_name'])
 
 			res_len_opt = readout_len_sweep[np.argmax(fidelity_vec)]
 			print(

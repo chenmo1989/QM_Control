@@ -169,7 +169,8 @@ class AH_exp2D:
 		return poly_param
 
 
-	def qubit_vs_flux(self, expt_dataset, fit_order = 4, to_plot = True, data_process_method = 'I'):
+	def qubit_vs_flux(self, expt_dataset, fit_order = 4, to_plot = True, data_process_method = 'I', fit_type = 'peak'):
+
 		"""Analyze the qubit spectroscopy vs flux data (2D). Work with both dc flux and fast flux.
 
 		2D data is first sliced at each dc flux point, and qubit frequency is identified by fitting to a Gaussian peak (using Amplitude).
@@ -184,6 +185,8 @@ class AH_exp2D:
 			sig_amp ([type]): [description]
 			fit_order (number): [description] (default: `4`)
 			to_plot (bool): [description] (default: `True`)
+
+			fit_type (str): fit to either 'peak' (default) or 'dip'
 
 		Returns:
 			[type]: [description]
@@ -203,7 +206,7 @@ class AH_exp2D:
 
 		qubit_freq = []
 		for i in range(len(x)): # go over dc flux
-			qubit_freq_tmp = self.exp1D.peak_fit(expt_dataset.isel(x=i), method="Gaussian", to_plot = False, data_process_method = data_process_method)
+			qubit_freq_tmp = self.exp1D.peak_fit(expt_dataset.isel(x=i), method="Gaussian", to_plot = False, data_process_method = data_process_method, fit_type = fit_type)
 			qubit_freq.append(qubit_freq_tmp) # in Hz
 
 		qubit_freq = np.array(qubit_freq)
@@ -272,7 +275,8 @@ class AH_exp2D:
 
 		# Get the original size and pad to the next power of 2
 		original_size = mean_subtracted_data.sizes[dim_name_time]
-		padded_size = 2 ** self._next_power_of_2(original_size)
+
+		padded_size = 2 * 2 ** self._next_power_of_2(original_size)
 		pad_width = padded_size - original_size
 
 		# Create the pad_width tuple for np.pad, making sure to pad only along the correct axis

@@ -22,7 +22,7 @@ class DataLoggingHandle:
 	def __init__(self):
 		pass
 
-	def save(self, expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence):
+	def save(self, expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra = None):
 		# save base attributes
 		expt_dataset.attrs['created'] = timestamp_created.strftime(datetime_format_string())
 		expt_dataset.attrs['finished'] = timestamp_finished.strftime(datetime_format_string())
@@ -31,6 +31,10 @@ class DataLoggingHandle:
 		expt_dataset.attrs['qubit'] = expt_qubits
 		expt_dataset.attrs['TLS'] = expt_TLS
 		expt_dataset.attrs['sequence'] = expt_sequence
+		if expt_extra != None:
+			## This must saved as a dictionary. E.g. expt_extra = {'key1': str(value1), 'key2': str(value2)}
+			for key, value in expt_extra.items():
+				expt_dataset.attrs[key] = value
 
 		# add units to coordinates
 		expt_dataset = self.add_attrs(expt_dataset)
@@ -133,6 +137,8 @@ class DataLoggingHandle:
 				expt_dataset.coords[keys].attrs['units'] = 'ns'
 			elif 'Interval' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'ns'
+			elif 'Elapsed' in keys:
+				expt_dataset.coords[keys].attrs['units'] = 's'
 			elif 'Frequency' in keys:
 				expt_dataset.coords[keys].attrs['units'] = 'Hz'
 			elif 'Detuning' in keys:

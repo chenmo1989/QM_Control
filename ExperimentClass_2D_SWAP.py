@@ -175,8 +175,12 @@ class EH_SWAP:
 			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
 
 			if final_plot:
 				if live_plot is False:
@@ -184,6 +188,8 @@ class EH_SWAP:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
+				plt.title(expt_dataset.attrs['long_name'])
+
 
 			return machine, expt_dataset
 
@@ -362,8 +368,14 @@ class EH_SWAP:
 			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
+			expt_extra = {
+				'n_ave': str(n_avg),
+				'Qubit CD [ns]': str(cd_time)
+			}
+
 			# save data
-			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence)
+			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+
 
 			if final_plot:
 				if live_plot is False:
@@ -371,6 +383,8 @@ class EH_SWAP:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
+
+				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
 

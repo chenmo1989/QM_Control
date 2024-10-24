@@ -205,8 +205,8 @@ class AH_exp1D:
 		return res_freq
 
 
-	def peak_fit(self, expt_dataset, method = "Lorentzian", to_plot = True, data_process_method = 'Amplitude'):
-		"""Fit data to a peak with lineshape defined by method
+	def peak_fit(self, expt_dataset, method = "Lorentzian", to_plot = True, data_process_method = 'Amplitude', fit_type='peak'):
+		"""Fit data to a peak (or dip) with lineshape defined by method
 		
 		Mainly for spectroscopy experiments. Using lmfit to fit.
 		Data must show a clear peak, otherwise the initial guess would not work well.
@@ -218,7 +218,7 @@ class AH_exp1D:
 			method (str): [description] (default: `"Lorentzian"`)
 			to_plot (bool): [description] (default: `True`)
 			data_process_method (str): variable name/key in expt_dataset to be used. e.g. Amplitude, Phase, SNR, I, Q, etc (default: `Amplitude`)
-		
+			fit_type (str): peak or dip (default: 'peak')
 		Returns:
 			[type]: [description]
 		"""
@@ -235,13 +235,22 @@ class AH_exp1D:
 
 		if method == "Lorentzian":
 			mod = lmfit.models.LorentzianModel()
-			pars_peak = mod.guess(y, x = x)
+
 		elif method == "Gaussian":
 			mod = lmfit.models.GaussianModel()
-			pars_peak = mod.guess(y, x = x)
+
 		else:
 			print('-'*12 + 'model name (method) not defined ...')
 			return None
+		if fit_type == 'peak':
+			y = y
+		elif fit_type == 'dip':
+			y = -y
+		else:
+			print('peak_fit must be either a peak or dip -- check spelling')
+			return None
+
+		pars_peak = mod.guess(y, x=x)
 
 		mod = mod + lmfit.models.LinearModel()
 		pars = mod.make_params()
