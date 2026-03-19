@@ -170,6 +170,10 @@ class AH_exp2D:
 
 
 	def qubit_vs_flux(self, expt_dataset, fit_order = 4, to_plot = True, data_process_method = 'I', fit_type = 'peak'):
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 		"""Analyze the qubit spectroscopy vs flux data (2D). Work with both dc flux and fast flux.
 
 		2D data is first sliced at each dc flux point, and qubit frequency is identified by fitting to a Gaussian peak (using Amplitude).
@@ -184,6 +188,10 @@ class AH_exp2D:
 			sig_amp ([type]): [description]
 			fit_order (number): [description] (default: `4`)
 			to_plot (bool): [description] (default: `True`)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			fit_type (str): fit to either 'peak' (default) or 'dip'
 
 		Returns:
@@ -273,6 +281,10 @@ class AH_exp2D:
 
 		# Get the original size and pad to the next power of 2
 		original_size = mean_subtracted_data.sizes[dim_name_time]
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 		padded_size = 2 * 2 ** self._next_power_of_2(original_size)
 		pad_width = padded_size - original_size
 

@@ -260,6 +260,10 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
@@ -311,6 +315,11 @@ with for_(n, 0, n < n_avg, n + 1):
 		# regular LO and if frequency, and their settings in configurations.
 		tls_if_freq = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
 
+<<<<<<< HEAD
+=======
+		config = build_config(machine)
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 		if abs(tls_if_freq) > 400E6: # check if parameters are within hardware limit
 			print("TLS if range > 400MHz. Setting the octave freq. Will calibrate octave.")
 			machine.octaves[0].LO_sources[1].LO_frequency = machine.qubits[qubit_index].f_tls[TLS_index] - 50E6
@@ -404,7 +413,10 @@ with for_(n, 0, n < n_avg, n + 1):
 				machine = self.set_octave.calibration(machine, qubit_index, TLS_index=TLS_index, log_flag=True,
 													  calibration_flag=True, qubit_only=True)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			qm = self.qmm.open_qm(config)
 			timestamp_created = datetime.datetime.now()
 			job = qm.execute(tls_echo)
@@ -926,4 +938,11 @@ with for_(n, 0, n < n_avg, n + 1):
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker='.')
 				plt.title(expt_dataset.attrs['long_name'])
 
+<<<<<<< HEAD
 			return machine, expt_dataset
+=======
+
+			return machine, expt_dataset
+
+			
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934

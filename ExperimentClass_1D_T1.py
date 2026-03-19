@@ -356,6 +356,10 @@ class EH_T1:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
@@ -556,6 +560,10 @@ with for_(n, 0, n < n_avg, n + 1):
 			}
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 
 			if final_plot:
 				if live_plot is False:
@@ -563,6 +571,10 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset

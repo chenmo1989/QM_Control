@@ -414,6 +414,10 @@ with for_(n, 0, n < n_avg, n + 1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset

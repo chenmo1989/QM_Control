@@ -65,6 +65,10 @@ class EH_Octave:
 		# find the if frequency (and amp only for the qubit) to be calibrated.
 		params = AutoCalibrationParams()  # so I can calibrate for the pi pulse amplitude! Default is 125 mV, which is generally too high!
 		if TLS_index is None:
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			# params.if_amplitude = machine.qubits[qubit_index].pi_amp
 			if_freq_tmp = machine.qubits[qubit_index].f_01 - machine.octaves[0].LO_sources[1].LO_frequency
 		else:

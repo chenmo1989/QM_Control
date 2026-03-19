@@ -254,6 +254,10 @@ class EH_Rabi:
 		Returns:
 			[type]: [description]
 		"""
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 		# set up variables
 		ff_sweep = ff_sweep_abs / machine.flux_lines[qubit_index].flux_pulse_amp # relative pulse amp
 		channel_index = int(machine.qubits[qubit_index].name[1:])
@@ -266,6 +270,10 @@ class EH_Rabi:
 			if poly_param is None:
 				poly_param = machine.qubits[qubit_index].DC_tuning_curve
 			qubit_freq_est_sweep = np.polyval(poly_param, (ff_to_dc_ratio * ff_sweep_abs) + machine.dc_flux[channel_index].max_frequency_point) * 1E6 # Hz
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 		qubit_freq_est_sweep = np.floor(qubit_freq_est_sweep)
 
 		# Initialize empty vectors to store the global 'I' & 'Q' results

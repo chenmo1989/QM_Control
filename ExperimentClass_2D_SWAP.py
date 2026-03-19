@@ -189,6 +189,10 @@ class EH_SWAP:
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
 				plt.title(expt_dataset.attrs['long_name'])
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 
 			return machine, expt_dataset
 
@@ -366,6 +370,10 @@ class EH_SWAP:
 			align()
 			wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			expt_extra = {
 				'n_ave': str(n_avg),
 				'Qubit CD [ns]': str(cd_time)
@@ -373,6 +381,10 @@ class EH_SWAP:
 
 			# save data
 			self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 
 			if final_plot:
 				if live_plot is False:
@@ -380,6 +392,10 @@ class EH_SWAP:
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x = list(expt_dataset.coords.keys())[0], y = list(expt_dataset.coords.keys())[1], cmap = "seismic")
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset

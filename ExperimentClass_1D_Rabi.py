@@ -738,6 +738,10 @@ class EH_Rabi:
 		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)"""
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			expt_extra = {
 				'pi_amp_rel': str(pi_amp_rel),
 				'n_ave': str(n_avg),
@@ -746,12 +750,20 @@ class EH_Rabi:
 			}
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 
 			if final_plot:
 				if live_plot is False:
 					fig = plt.figure()
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 				plt.title(expt_dataset.attrs['long_name'])
 
@@ -806,6 +818,10 @@ class EH_Rabi:
 		# regular LO and if frequency, and their settings in configurations.
 		tls_if_freq = machine.qubits[qubit_index].f_tls[TLS_index] - machine.octaves[0].LO_sources[1].LO_frequency
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 		if abs(tls_if_freq) > 400E6: # check if parameters are within hardware limit
 			print("TLS if range > 400MHz. Setting the octave freq. Will calibrate octave.")
 			machine.octaves[0].LO_sources[1].LO_frequency = machine.qubits[qubit_index].f_tls[TLS_index] - 50E6
@@ -958,6 +974,10 @@ with for_(n, 0, n < n_avg, n+1):
 		wait(cd_time_TLS * u.ns, machine.flux_lines[qubit_index].name)
 	save(n, n_st)
 """
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			expt_extra = {
 				'n_ave': str(n_avg),
 				'Qubit CD [ns]': str(cd_time_qubit),
@@ -965,12 +985,20 @@ with for_(n, 0, n < n_avg, n+1):
 			}
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 
 			if final_plot:
 				if live_plot is False:
 					fig = plt.figure()
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
 				plt.title(expt_dataset.attrs['long_name'])
 
@@ -1335,6 +1363,10 @@ with for_(n, 0, n < n_avg, n+1):
 		wait(cd_time * u.ns, machine.resonators[qubit_index].name)
 	save(n, n_st)"""
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 			expt_extra = {
 				'pi_amp_rel_ef': str(pi_amp_rel_ef),
 				'n_ave': str(n_avg),
@@ -1343,6 +1375,10 @@ with for_(n, 0, n < n_avg, n+1):
 			}
 			# save data
 			expt_dataset = self.datalogs.save(expt_dataset, machine, timestamp_created, timestamp_finished, expt_name, expt_long_name, expt_qubits, expt_TLS, expt_sequence, expt_extra)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 
 			if final_plot:
 				if live_plot is False:
@@ -1350,6 +1386,10 @@ with for_(n, 0, n < n_avg, n+1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
@@ -1526,6 +1566,10 @@ with for_(n, 0, n < n_avg, n+1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
@@ -1702,6 +1746,10 @@ with for_(n, 0, n < n_avg, n+1):
 					plt.rcParams['figure.figsize'] = [8, 4]
 				plt.cla()
 				expt_dataset[data_process_method].plot(x=list(expt_dataset.coords.keys())[0], marker = '.')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9de8c5714c50ff2edbfd5fc99b3819909a199934
 				plt.title(expt_dataset.attrs['long_name'])
 
 			return machine, expt_dataset
